@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Abfalleintragung</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f7;
+    --card: #ffffff;
+    --text: #1b1b1b;
+    --muted: #666;
+    --border: #dcdfe3;
+    --primary: #2e7d32;
+    --primary-hover: #256428;
+    --danger: #c0392b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1c1e;
+      --card: #26282b;
+      --text: #f0f0f0;
+      --muted: #a0a0a0;
+      --border: #3a3d41;
+      --primary: #4caf50;
+      --primary-hover: #5cc160;
+      --danger: #e57373;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    padding: 24px 16px 64px;
+  }
+  main { width: 100%; max-width: 640px; }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; }
+  p.subtitle { color: var(--muted); margin-top: 0; margin-bottom: 24px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+  .field { margin-bottom: 14px; display: flex; flex-direction: column; gap: 6px; }
+  label { font-size: 0.85rem; color: var(--muted); }
+  select, input {
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 1rem;
+  }
+  .row { display: flex; gap: 10px; }
+  .row > .field { flex: 1; }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    padding: 11px 16px;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+  .btn-primary {
+    background: var(--primary);
+    color: white;
+    width: 100%;
+  }
+  .btn-primary:hover { background: var(--primary-hover); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; }
+  td.amount { text-align: right; white-space: nowrap; }
+  .del-btn {
+    background: transparent;
+    color: var(--danger);
+    padding: 4px 8px;
+    font-size: 0.85rem;
+  }
+  .empty { color: var(--muted); font-size: 0.9rem; padding: 12px 0; }
+  .summary { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  .chip {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+  }
+  .chip b { color: var(--primary); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Abfalleintragung</h1>
+  <p class="subtitle">Erfasse Abfallart, Menge/Gewicht und Datum. Alle Daten werden lokal in diesem Browser gespeichert.</p>
+
+  <div class="card">
+    <form id="entry-form">
+      <div class="field">
+        <label for="type">Abfallart</label>
+        <select id="type" required>
+          <option value="Restmüll">Restmüll</option>
+          <option value="Papier">Papier</option>
+          <option value="Bioabfall">Bioabfall</option>
+          <option value="Verpackung (Gelber Sack)">Verpackung (Gelber Sack)</option>
+          <option value="Glas">Glas</option>
+          <option value="Sondermüll">Sondermüll</option>
+        </select>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="amount">Menge/Gewicht</label>
+          <input type="number" id="amount" min="0" step="0.01" placeholder="z.B. 2.5" required>
+        </div>
+        <div class="field">
+          <label for="unit">Einheit</label>
+          <select id="unit">
+            <option value="kg">kg</option>
+            <option value="l">Liter</option>
+            <option value="Stück">Stück</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="date">Datum</label>
+        <input type="date" id="date" required>
+      </div>
+      <button type="submit" class="btn-primary">Eintragen</button>
+    </form>
+  </div>
+
+  <div class="summary" id="summary"></div>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>Datum</th>
+          <th>Abfallart</th>
+          <th class="amount">Menge</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="entries-body"></tbody>
+    </table>
+    <div class="empty" id="empty-msg" style="display:none;">Noch keine Einträge vorhanden.</div>
+  </div>
+</main>
+
+<script>
+  const STORAGE_KEY = 'abfall-eintraege';
+
+  function loadEntries() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveEntries(entries) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  }
+
+  function formatDate(iso) {
+    const [y, m, d] = iso.split('-');
+    return `${d}.${m}.${y}`;
+  }
+
+  function render() {
+    const entries = loadEntries();
+    const body = document.getElementById('entries-body');
+    const emptyMsg = document.getElementById('empty-msg');
+    const summary = document.getElementById('summary');
+
+    body.innerHTML = '';
+    if (entries.length === 0) {
+      emptyMsg.style.display = 'block';
+    } else {
+      emptyMsg.style.display = 'none';
+      const sorted = [...entries].sort((a, b) => b.date.localeCompare(a.date));
+      for (const entry of sorted) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${formatDate(entry.date)}</td>
+          <td>${entry.type}</td>
+          <td class="amount">${entry.amount} ${entry.unit}</td>
+          <td><button class="del-btn" data-id="${entry.id}">Löschen</button></td>
+        `;
+        body.appendChild(tr);
+      }
+    }
+
+    const totals = {};
+    for (const entry of entries) {
+      const key = `${entry.type}|${entry.unit}`;
+      totals[key] = (totals[key] || 0) + Number(entry.amount);
+    }
+    summary.innerHTML = Object.entries(totals)
+      .map(([key, total]) => {
+        const [type, unit] = key.split('|');
+        return `<span class="chip">${type}: <b>${total.toFixed(2)} ${unit}</b></span>`;
+      })
+      .join('');
+  }
+
+  document.getElementById('entry-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const entries = loadEntries();
+    entries.push({
+      id: Date.now().toString(36),
+      type: document.getElementById('type').value,
+      amount: document.getElementById('amount').value,
+      unit: document.getElementById('unit').value,
+      date: document.getElementById('date').value,
+    });
+    saveEntries(entries);
+    document.getElementById('amount').value = '';
+    render();
+  });
+
+  document.getElementById('entries-body').addEventListener('click', (e) => {
+    if (!e.target.matches('.del-btn')) return;
+    const id = e.target.dataset.id;
+    const entries = loadEntries().filter((entry) => entry.id !== id);
+    saveEntries(entries);
+    render();
+  });
+
+  document.getElementById('date').valueAsDate = new Date();
+  render();
+</script>
+</body>
+</html>
