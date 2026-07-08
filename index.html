@@ -15,6 +15,18 @@
     --primary: #2e7d32;
     --primary-hover: #256428;
     --danger: #c0392b;
+    /* chart chrome */
+    --chart-surface: #fcfcfb;
+    --chart-muted: #898781;
+    --chart-grid: #e1e0d9;
+    --chart-baseline: #c3c2b7;
+    /* categorical series (validated reference palette, slots 1-6) */
+    --s-restmuell: #2a78d6;
+    --s-papier: #1baf7a;
+    --s-bio: #eda100;
+    --s-verpackung: #008300;
+    --s-glas: #4a3aa7;
+    --s-sonder: #e34948;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -26,6 +38,16 @@
       --primary: #4caf50;
       --primary-hover: #5cc160;
       --danger: #e57373;
+      --chart-surface: #26282b;
+      --chart-muted: #898781;
+      --chart-grid: #2c2c2a;
+      --chart-baseline: #383835;
+      --s-restmuell: #3987e5;
+      --s-papier: #199e70;
+      --s-bio: #c98500;
+      --s-verpackung: #008300;
+      --s-glas: #9085e9;
+      --s-sonder: #e66767;
     }
   }
   * { box-sizing: border-box; }
@@ -94,6 +116,30 @@
     font-size: 0.85rem;
   }
   .chip b { color: var(--primary); }
+  .card h2 { font-size: 1.05rem; margin: 0 0 14px; }
+  .chart-wrap { width: 100%; overflow-x: auto; }
+  #chart { display: block; width: 100%; height: auto; background: var(--chart-surface); border-radius: 8px; }
+  #chart text { font-family: inherit; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-top: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--muted); }
+  .legend-swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+  #chart .seg { transition: opacity .12s; }
+  #chart .seg:hover { opacity: 0.82; cursor: default; }
+  .chart-tip {
+    position: fixed;
+    pointer-events: none;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 9px;
+    font-size: 0.8rem;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+    opacity: 0;
+    transition: opacity .1s;
+    z-index: 10;
+    white-space: nowrap;
+  }
+  .chart-tip b { color: var(--text); }
 </style>
 </head>
 <body>
@@ -139,6 +185,14 @@
   <div class="summary" id="summary"></div>
 
   <div class="card">
+    <h2>Täglicher Report</h2>
+    <div class="chart-wrap">
+      <svg id="chart" viewBox="0 0 640 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Tägliche Abfallmenge nach Art"></svg>
+    </div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <div class="card">
     <table>
       <thead>
         <tr>
@@ -154,8 +208,22 @@
   </div>
 </main>
 
+<div class="chart-tip" id="chart-tip"></div>
+
 <script>
   const STORAGE_KEY = 'abfall-eintraege';
+
+  // Feste Farb-Zuordnung je Abfallart (Farbe folgt der Art, nicht der Reihenfolge)
+  const TYPE_COLORS = {
+    'Restmüll': 'var(--s-restmuell)',
+    'Papier': 'var(--s-papier)',
+    'Bioabfall': 'var(--s-bio)',
+    'Verpackung (Gelber Sack)': 'var(--s-verpackung)',
+    'Glas': 'var(--s-glas)',
+    'Sondermüll': 'var(--s-sonder)',
+  };
+  const TYPE_ORDER = Object.keys(TYPE_COLORS);
+  const SVGNS = 'http://www.w3.org/2000/svg';
 
   function loadEntries() {
     try {
@@ -209,6 +277,171 @@
         return `<span class="chip">${type}: <b>${total.toFixed(2)} ${unit}</b></span>`;
       })
       .join('');
+
+    renderChart(entries);
+  }
+
+  function renderChart(entries) {
+    const svg = document.getElementById('chart');
+    const legend = document.getElementById('legend');
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    legend.innerHTML = '';
+
+    const W = 640, H = 300;
+    const m = { top: 16, right: 12, bottom: 40, left: 44 };
+    const plotW = W - m.left - m.right;
+    const plotH = H - m.top - m.bottom;
+
+    if (entries.length === 0) {
+      const t = document.createElementNS(SVGNS, 'text');
+      t.setAttribute('x', W / 2);
+      t.setAttribute('y', H / 2);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('fill', 'var(--chart-muted)');
+      t.setAttribute('font-size', '13');
+      t.textContent = 'Noch keine Daten für den Report.';
+      svg.appendChild(t);
+      return;
+    }
+
+    // Aggregieren: Tag -> Abfallart -> Summe der Menge
+    const byDay = {};
+    for (const e of entries) {
+      (byDay[e.date] = byDay[e.date] || {});
+      byDay[e.date][e.type] = (byDay[e.date][e.type] || 0) + Number(e.amount);
+    }
+    const days = Object.keys(byDay).sort();
+    const typesPresent = TYPE_ORDER.filter((t) => entries.some((e) => e.type === t));
+
+    const dayTotals = days.map((d) =>
+      Object.values(byDay[d]).reduce((a, b) => a + b, 0)
+    );
+    const maxTotal = Math.max(...dayTotals, 1);
+    // "schöne" Obergrenze
+    const niceMax = niceCeil(maxTotal);
+
+    const y = (v) => m.top + plotH - (v / niceMax) * plotH;
+    const bandW = plotW / days.length;
+    const barW = Math.min(48, bandW * 0.62);
+
+    // Gridlines + Y-Achsenbeschriftung
+    const ticks = 4;
+    for (let i = 0; i <= ticks; i++) {
+      const val = (niceMax / ticks) * i;
+      const yy = y(val);
+      const line = document.createElementNS(SVGNS, 'line');
+      line.setAttribute('x1', m.left);
+      line.setAttribute('x2', m.left + plotW);
+      line.setAttribute('y1', yy);
+      line.setAttribute('y2', yy);
+      line.setAttribute('stroke', i === 0 ? 'var(--chart-baseline)' : 'var(--chart-grid)');
+      line.setAttribute('stroke-width', '1');
+      svg.appendChild(line);
+
+      const lbl = document.createElementNS(SVGNS, 'text');
+      lbl.setAttribute('x', m.left - 8);
+      lbl.setAttribute('y', yy + 4);
+      lbl.setAttribute('text-anchor', 'end');
+      lbl.setAttribute('fill', 'var(--chart-muted)');
+      lbl.setAttribute('font-size', '11');
+      lbl.textContent = trimNum(val);
+      svg.appendChild(lbl);
+    }
+
+    const tip = document.getElementById('chart-tip');
+    const showTip = (evt, html) => {
+      tip.innerHTML = html;
+      tip.style.opacity = '1';
+      tip.style.left = (evt.clientX + 12) + 'px';
+      tip.style.top = (evt.clientY - 10) + 'px';
+    };
+    const hideTip = () => { tip.style.opacity = '0'; };
+
+    days.forEach((d, di) => {
+      const cx = m.left + bandW * di + bandW / 2;
+      const x = cx - barW / 2;
+      let acc = 0;
+      const dayTotal = dayTotals[di];
+
+      typesPresent.forEach((type) => {
+        const v = byDay[d][type];
+        if (!v) return;
+        const segTop = y(acc + v);
+        const segBottom = y(acc);
+        const h = Math.max(1, segBottom - segTop);
+        // 2px Fugen zwischen gestapelten Segmenten
+        const gap = acc > 0 ? 1 : 0;
+        const rect = document.createElementNS(SVGNS, 'rect');
+        rect.setAttribute('class', 'seg');
+        rect.setAttribute('x', x);
+        rect.setAttribute('y', segTop);
+        rect.setAttribute('width', barW);
+        rect.setAttribute('height', Math.max(1, h - gap));
+        rect.setAttribute('rx', '2');
+        rect.setAttribute('fill', TYPE_COLORS[type]);
+        rect.addEventListener('mousemove', (evt) =>
+          showTip(evt, `<b>${type}</b><br>${formatDate(d)}: ${trimNum(v)}`)
+        );
+        rect.addEventListener('mouseleave', hideTip);
+        svg.appendChild(rect);
+        acc += v;
+      });
+
+      // Tages-Summe als direktes Label
+      const lbl = document.createElementNS(SVGNS, 'text');
+      lbl.setAttribute('x', cx);
+      lbl.setAttribute('y', y(dayTotal) - 6);
+      lbl.setAttribute('text-anchor', 'middle');
+      lbl.setAttribute('fill', 'var(--text)');
+      lbl.setAttribute('font-size', '11');
+      lbl.setAttribute('font-weight', '600');
+      lbl.textContent = trimNum(dayTotal);
+      svg.appendChild(lbl);
+
+      // X-Achsenbeschriftung (Datum)
+      const xlbl = document.createElementNS(SVGNS, 'text');
+      xlbl.setAttribute('x', cx);
+      xlbl.setAttribute('y', H - 22);
+      xlbl.setAttribute('text-anchor', 'middle');
+      xlbl.setAttribute('fill', 'var(--chart-muted)');
+      xlbl.setAttribute('font-size', '11');
+      xlbl.textContent = shortDate(d);
+      svg.appendChild(xlbl);
+    });
+
+    // Y-Achsentitel
+    const axisTitle = document.createElementNS(SVGNS, 'text');
+    axisTitle.setAttribute('x', m.left);
+    axisTitle.setAttribute('y', H - 6);
+    axisTitle.setAttribute('text-anchor', 'start');
+    axisTitle.setAttribute('fill', 'var(--chart-muted)');
+    axisTitle.setAttribute('font-size', '10');
+    axisTitle.textContent = 'Menge summiert je Tag';
+    svg.appendChild(axisTitle);
+
+    // Legende
+    legend.innerHTML = typesPresent
+      .map((t) =>
+        `<span class="legend-item"><span class="legend-swatch" style="background:${TYPE_COLORS[t]}"></span>${t}</span>`
+      )
+      .join('');
+  }
+
+  function niceCeil(v) {
+    if (v <= 0) return 1;
+    const mag = Math.pow(10, Math.floor(Math.log10(v)));
+    const n = v / mag;
+    const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+    return step * mag;
+  }
+
+  function trimNum(v) {
+    return (Math.round(v * 100) / 100).toString();
+  }
+
+  function shortDate(iso) {
+    const [, m, d] = iso.split('-');
+    return `${d}.${m}.`;
   }
 
   document.getElementById('entry-form').addEventListener('submit', (e) => {
