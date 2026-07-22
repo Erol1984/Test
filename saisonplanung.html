@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FCWB – Saisonplanung</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f4f6f2;
+    --surface: #ffffff;
+    --surface-2: #eef1ea;
+    --text: #14201a;
+    --text-2: #4d5b52;
+    --muted: #86928a;
+    --border: rgba(20,32,26,0.12);
+    --accent: #1e5631;
+    --accent-strong: #123d22;
+    --accent-soft: #e3efe6;
+    --gold: #a97a26;
+    --gold-soft: #f3e6c8;
+    --chart-surface: #fcfcfb;
+    --chart-grid: #e1e0d9;
+    --chart-baseline: #c3c2b7;
+    --status-good: #0ca30c;
+    --status-warning: #c98300;
+    --status-critical: #d03b3b;
+    --shadow: 0 10px 30px -12px rgba(20,32,26,0.25);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #0e130f;
+      --surface: #171d18;
+      --surface-2: #1f2620;
+      --text: #eef2ec;
+      --text-2: #b9c2b7;
+      --muted: #7c8880;
+      --border: rgba(255,255,255,0.12);
+      --accent: #4caf6f;
+      --accent-strong: #6fc78d;
+      --accent-soft: rgba(76,175,111,0.16);
+      --gold: #d9a94a;
+      --gold-soft: rgba(217,169,74,0.18);
+      --chart-surface: #1a1f1b;
+      --chart-grid: #2c332c;
+      --chart-baseline: #3a423b;
+      --status-good: #14b814;
+      --status-warning: #e0a020;
+      --status-critical: #e0605a;
+      --shadow: 0 10px 30px -12px rgba(0,0,0,0.5);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    padding-bottom: 64px;
+  }
+  main { width: 100%; max-width: 760px; }
+
+  .disp {
+    font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+    text-wrap: balance;
+  }
+
+  /* Header */
+  header.hero {
+    background: linear-gradient(160deg, var(--accent) 0%, var(--accent-strong) 100%);
+    color: #f6f9f4;
+    padding: 28px 20px 40px;
+    border-radius: 0 0 22px 22px;
+    position: relative;
+    overflow: hidden;
+  }
+  header.hero::after {
+    content: "";
+    position: absolute;
+    inset: -40% -10% auto auto;
+    width: 260px; height: 260px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.10), transparent 70%);
+  }
+  .hero-row { display: flex; align-items: center; gap: 14px; position: relative; }
+  .crest {
+    flex: none;
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    background: var(--gold-soft);
+    border: 2px solid var(--gold);
+    color: var(--gold);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+  }
+  .hero-titles h1 { font-size: 1.5rem; margin: 0; line-height: 1.1; }
+  .hero-titles .tagline { margin: 3px 0 0; color: rgba(246,249,244,0.78); font-size: 0.85rem; letter-spacing: 0.02em; }
+  .season-edit {
+    margin-top: 18px;
+    position: relative;
+  }
+  .season-input {
+    width: 100%;
+    background: rgba(255,255,255,0.10);
+    border: 1px solid rgba(255,255,255,0.28);
+    color: #fff;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 0.92rem;
+    font-weight: 600;
+  }
+  .season-input::placeholder { color: rgba(255,255,255,0.6); }
+
+  /* Stat strip */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: -26px 16px 0;
+    position: relative;
+    z-index: 2;
+  }
+  .stat-tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 10px;
+    box-shadow: var(--shadow);
+    text-align: center;
+  }
+  .stat-tile .v {
+    font-size: 1.2rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+  }
+  .stat-tile .v.pos { color: var(--status-good); }
+  .stat-tile .v.neg { color: var(--status-critical); }
+  .stat-tile .l { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 3px; }
+
+  /* Tabs */
+  nav.tabs {
+    display: flex;
+    gap: 4px;
+    margin: 26px 16px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    appearance: none;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 10px 6px 12px;
+    cursor: pointer;
+  }
+  nav.tabs button.active { color: var(--text); border-bottom-color: var(--gold); }
+  nav.tabs button:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  section.view { display: none; padding: 0 16px; }
+  section.view.active { display: block; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 18px;
+  }
+  .card h2 {
+    font-size: 0.78rem;
+    margin: 0 0 14px;
+    color: var(--text-2);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+  }
+
+  .field { margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .row { display: flex; gap: 10px; }
+  .row > .field { flex: 1; min-width: 0; }
+  label { font-size: 0.78rem; color: var(--muted); }
+  select, input {
+    padding: 9px 11px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.92rem;
+    width: 100%;
+  }
+  button.btn {
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 0.88rem;
+    font-weight: 700;
+  }
+  .btn-primary { background: var(--accent); color: #fff; width: 100%; }
+  .btn-primary:hover { background: var(--accent-strong); }
+  .btn-ghost { background: transparent; color: var(--status-critical); padding: 5px 8px; font-size: 0.8rem; }
+
+  .subhead {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    font-weight: 700;
+    margin: 18px 0 8px;
+  }
+  .subhead:first-child { margin-top: 0; }
+
+  ul.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-2);
+  }
+  .item .tag {
+    flex: none;
+    font-size: 0.68rem;
+    font-weight: 800;
+    padding: 3px 7px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .tag.home { background: var(--accent-soft); color: var(--accent-strong); }
+  .tag.away { background: var(--gold-soft); color: var(--gold); }
+  .item .main { flex: 1; min-width: 0; }
+  .item .opp { font-weight: 700; font-size: 0.92rem; }
+  .item .meta { color: var(--muted); font-size: 0.76rem; margin-top: 2px; }
+  .item .score {
+    flex: none;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.95rem;
+    padding: 4px 9px;
+    border-radius: 7px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+  .score.win { color: var(--status-good); }
+  .score.draw { color: var(--status-warning); }
+  .score.loss { color: var(--status-critical); }
+  .result-input { display: flex; align-items: center; gap: 6px; flex: none; }
+  .result-input input { width: 40px; padding: 6px; text-align: center; }
+  .result-input button { flex: none; padding: 6px 9px; font-size: 0.76rem; }
+
+  .player-num {
+    flex: none;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .empty { color: var(--muted); font-size: 0.85rem; padding: 10px 2px; }
+
+  /* Chart */
+  .chart-wrap { width: 100%; overflow-x: auto; }
+  #chart { display: block; width: 100%; height: auto; background: var(--chart-surface); border-radius: 8px; }
+  #chart .seg { transition: opacity .12s; }
+  #chart .seg:hover { opacity: 0.85; cursor: default; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-top: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text-2); }
+  .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .chart-tip {
+    position: fixed;
+    pointer-events: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 9px;
+    font-size: 0.8rem;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    transition: opacity .1s;
+    z-index: 10;
+    white-space: nowrap;
+    color: var(--text);
+  }
+
+  @media (max-width: 460px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <div class="hero-row">
+      <div class="crest">FCWB</div>
+      <div class="hero-titles">
+        <h1 class="disp">Saisonplanung</h1>
+        <p class="tagline">Spielplan · Kader · Training an einem Ort</p>
+      </div>
+    </div>
+    <div class="season-edit">
+      <input class="season-input" id="season-name" placeholder="Saison, z.B. 2026/27" />
+    </div>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-view="spielplan">Spielplan</button>
+    <button class="tab-btn" data-view="kader">Kader</button>
+    <button class="tab-btn" data-view="training">Training</button>
+  </nav>
+
+  <!-- SPIELPLAN -->
+  <section class="view active" id="view-spielplan">
+    <div class="card">
+      <h2>Saisonform</h2>
+      <div class="chart-wrap">
+        <svg id="chart" viewBox="0 0 680 220" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Erzielte Punkte je Spieltag"></svg>
+      </div>
+      <div class="legend" id="chart-legend"></div>
+    </div>
+
+    <div class="card">
+      <h2>Spiel eintragen</h2>
+      <form id="match-form">
+        <div class="row">
+          <div class="field">
+            <label for="m-day">Spieltag / Wettbewerb</label>
+            <input id="m-day" placeholder="z.B. 12. Spieltag" required>
+          </div>
+          <div class="field">
+            <label for="m-ha">Heim/Auswärts</label>
+            <select id="m-ha">
+              <option value="H">Heim</option>
+              <option value="A">Auswärts</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="m-opp">Gegner</label>
+          <input id="m-opp" placeholder="z.B. SV Musterhausen" required>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="m-date">Datum</label>
+            <input type="date" id="m-date" required>
+          </div>
+          <div class="field">
+            <label for="m-time">Anstoß</label>
+            <input type="time" id="m-time">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="m-us">Tore FCWB (optional)</label>
+            <input type="number" id="m-us" min="0" placeholder="–">
+          </div>
+          <div class="field">
+            <label for="m-them">Tore Gegner (optional)</label>
+            <input type="number" id="m-them" min="0" placeholder="–">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Spiel speichern</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="subhead">Kommende Spiele</div>
+      <ul class="list" id="upcoming-list"></ul>
+      <div class="empty" id="upcoming-empty" style="display:none;">Keine kommenden Spiele eingetragen.</div>
+
+      <div class="subhead">Ergebnisse</div>
+      <ul class="list" id="results-list"></ul>
+      <div class="empty" id="results-empty" style="display:none;">Noch keine Ergebnisse erfasst.</div>
+    </div>
+  </section>
+
+  <!-- KADER -->
+  <section class="view" id="view-kader">
+    <div class="card">
+      <h2>Spieler hinzufügen</h2>
+      <form id="player-form">
+        <div class="row">
+          <div class="field" style="flex: 2;">
+            <label for="p-name">Name</label>
+            <input id="p-name" placeholder="z.B. Max Mustermann" required>
+          </div>
+          <div class="field">
+            <label for="p-num">Nr.</label>
+            <input type="number" id="p-num" min="1" max="99" placeholder="9">
+          </div>
+        </div>
+        <div class="field">
+          <label for="p-pos">Position</label>
+          <select id="p-pos">
+            <option>Torwart</option>
+            <option>Abwehr</option>
+            <option>Mittelfeld</option>
+            <option>Sturm</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Spieler speichern</button>
+      </form>
+    </div>
+
+    <div class="card" id="squad-card">
+      <div id="squad-groups"></div>
+      <div class="empty" id="squad-empty" style="display:none;">Noch keine Spieler im Kader.</div>
+    </div>
+  </section>
+
+  <!-- TRAINING -->
+  <section class="view" id="view-training">
+    <div class="card">
+      <h2>Training eintragen</h2>
+      <form id="training-form">
+        <div class="row">
+          <div class="field">
+            <label for="t-date">Datum</label>
+            <input type="date" id="t-date" required>
+          </div>
+          <div class="field">
+            <label for="t-time">Uhrzeit</label>
+            <input type="time" id="t-time">
+          </div>
+        </div>
+        <div class="field">
+          <label for="t-loc">Ort</label>
+          <input id="t-loc" placeholder="z.B. Sportplatz Waldstraße">
+        </div>
+        <div class="field">
+          <label for="t-note">Schwerpunkt</label>
+          <input id="t-note" placeholder="z.B. Standardsituationen">
+        </div>
+        <button type="submit" class="btn btn-primary">Training speichern</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="subhead">Trainingsplan</div>
+      <ul class="list" id="training-list"></ul>
+      <div class="empty" id="training-empty" style="display:none;">Noch keine Trainingstermine eingetragen.</div>
+    </div>
+  </section>
+</main>
+
+<div class="chart-tip" id="chart-tip"></div>
+
+<script>
+  const K_SEASON = 'fcwb-season-name';
+  const K_MATCHES = 'fcwb-matches';
+  const K_PLAYERS = 'fcwb-players';
+  const K_TRAININGS = 'fcwb-trainings';
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const TODAY = new Date().toISOString().slice(0, 10);
+
+  const POSITIONS = ['Torwart', 'Abwehr', 'Mittelfeld', 'Sturm'];
+
+  function load(key) {
+    try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; }
+  }
+  function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+
+  function formatDate(iso) {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-');
+    return `${d}.${m}.${y}`;
+  }
+  function shortDate(iso) {
+    const [, m, d] = iso.split('-');
+    return `${d}.${m}.`;
+  }
+  function hasResult(m) { return m.us !== null && m.us !== undefined && m.them !== null && m.them !== undefined; }
+  function resultClass(m) {
+    if (m.us > m.them) return 'win';
+    if (m.us < m.them) return 'loss';
+    return 'draw';
+  }
+  function points(m) {
+    if (m.us > m.them) return 3;
+    if (m.us === m.them) return 1;
+    return 0;
+  }
+
+  /* ---------- Tabs ---------- */
+  document.querySelectorAll('.tab-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+      document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('view-' + btn.dataset.view).classList.add('active');
+    });
+  });
+
+  /* ---------- Season name ---------- */
+  const seasonInput = document.getElementById('season-name');
+  seasonInput.value = localStorage.getItem(K_SEASON) || '';
+  seasonInput.addEventListener('input', () => localStorage.setItem(K_SEASON, seasonInput.value));
+
+  /* ---------- Stats ---------- */
+  function renderStats() {
+    const matches = load(K_MATCHES).filter(hasResult);
+    const spiele = matches.length;
+    const siege = matches.filter((m) => m.us > m.them).length;
+    const unentschieden = matches.filter((m) => m.us === m.them).length;
+    const niederlagen = matches.filter((m) => m.us < m.them).length;
+    const tore = matches.reduce((a, m) => a + Number(m.us), 0);
+    const gegentore = matches.reduce((a, m) => a + Number(m.them), 0);
+    const diff = tore - gegentore;
+    const punkte = siege * 3 + unentschieden;
+
+    const tiles = [
+      ['Spiele', spiele, ''],
+      ['Siege', siege, ''],
+      ['Remis', unentschieden, ''],
+      ['Niederl.', niederlagen, ''],
+      ['Tore', tore, ''],
+      ['Gegentore', gegentore, ''],
+      ['Tordiff.', (diff > 0 ? '+' : '') + diff, diff > 0 ? 'pos' : diff < 0 ? 'neg' : ''],
+      ['Punkte', punkte, ''],
+    ];
+    document.getElementById('stats').innerHTML = tiles
+      .map(([l, v, cls]) => `<div class="stat-tile"><div class="v ${cls}">${v}</div><div class="l">${l}</div></div>`)
+      .join('');
+  }
+
+  /* ---------- Chart: Punkte je Spieltag ---------- */
+  function renderChart() {
+    const svg = document.getElementById('chart');
+    const legend = document.getElementById('chart-legend');
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+    const played = load(K_MATCHES).filter(hasResult).sort((a, b) => a.date.localeCompare(b.date));
+
+    legend.innerHTML = [
+      ['Sieg', 'var(--status-good)'],
+      ['Remis', 'var(--status-warning)'],
+      ['Niederlage', 'var(--status-critical)'],
+    ].map(([l, c]) => `<span class="legend-item"><span class="legend-dot" style="background:${c}"></span>${l}</span>`).join('');
+
+    const W = 680, H = 220;
+    const m = { top: 14, right: 12, bottom: 34, left: 30 };
+    const plotW = W - m.left - m.right;
+    const plotH = H - m.top - m.bottom;
+
+    if (played.length === 0) {
+      const t = document.createElementNS(SVGNS, 'text');
+      t.setAttribute('x', W / 2);
+      t.setAttribute('y', H / 2);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('fill', 'var(--muted)');
+      t.setAttribute('font-size', '13');
+      t.textContent = 'Noch keine Ergebnisse für die Saisonform.';
+      svg.appendChild(t);
+      return;
+    }
+
+    const niceMax = 3;
+    const y = (v) => m.top + plotH - (v / niceMax) * plotH;
+    const bandW = plotW / played.length;
+    const barW = Math.min(40, bandW * 0.55);
+
+    [0, 1, 2, 3].forEach((val) => {
+      const yy = y(val);
+      const line = document.createElementNS(SVGNS, 'line');
+      line.setAttribute('x1', m.left);
+      line.setAttribute('x2', m.left + plotW);
+      line.setAttribute('y1', yy);
+      line.setAttribute('y2', yy);
+      line.setAttribute('stroke', val === 0 ? 'var(--chart-baseline)' : 'var(--chart-grid)');
+      line.setAttribute('stroke-width', '1');
+      svg.appendChild(line);
+
+      const lbl = document.createElementNS(SVGNS, 'text');
+      lbl.setAttribute('x', m.left - 7);
+      lbl.setAttribute('y', yy + 4);
+      lbl.setAttribute('text-anchor', 'end');
+      lbl.setAttribute('fill', 'var(--muted)');
+      lbl.setAttribute('font-size', '10');
+      lbl.textContent = val;
+      svg.appendChild(lbl);
+    });
+
+    const tip = document.getElementById('chart-tip');
+    const showTip = (evt, html) => {
+      tip.innerHTML = html;
+      tip.style.opacity = '1';
+      tip.style.left = (evt.clientX + 12) + 'px';
+      tip.style.top = (evt.clientY - 10) + 'px';
+    };
+    const hideTip = () => { tip.style.opacity = '0'; };
+
+    const colorFor = { win: 'var(--status-good)', draw: 'var(--status-warning)', loss: 'var(--status-critical)' };
+
+    played.forEach((mtch, i) => {
+      const cx = m.left + bandW * i + bandW / 2;
+      const x = cx - barW / 2;
+      const p = points(mtch);
+      const cls = resultClass(mtch);
+      const top = y(p);
+      const bottom = y(0);
+      const h = Math.max(2, bottom - top);
+
+      const rect = document.createElementNS(SVGNS, 'rect');
+      rect.setAttribute('class', 'seg');
+      rect.setAttribute('x', x);
+      rect.setAttribute('y', top);
+      rect.setAttribute('width', barW);
+      rect.setAttribute('height', h);
+      rect.setAttribute('rx', '4');
+      rect.setAttribute('fill', colorFor[cls]);
+      rect.addEventListener('mousemove', (evt) =>
+        showTip(evt, `<b>${mtch.opponent}</b><br>${formatDate(mtch.date)} · ${mtch.us}:${mtch.them}`)
+      );
+      rect.addEventListener('mouseleave', hideTip);
+      svg.appendChild(rect);
+
+      if (played.length <= 14) {
+        const xlbl = document.createElementNS(SVGNS, 'text');
+        xlbl.setAttribute('x', cx);
+        xlbl.setAttribute('y', H - 18);
+        xlbl.setAttribute('text-anchor', 'middle');
+        xlbl.setAttribute('fill', 'var(--muted)');
+        xlbl.setAttribute('font-size', '9.5');
+        xlbl.textContent = shortDate(mtch.date);
+        svg.appendChild(xlbl);
+      }
+    });
+
+    const axisTitle = document.createElementNS(SVGNS, 'text');
+    axisTitle.setAttribute('x', m.left);
+    axisTitle.setAttribute('y', H - 4);
+    axisTitle.setAttribute('fill', 'var(--muted)');
+    axisTitle.setAttribute('font-size', '9.5');
+    axisTitle.textContent = 'Punkte je Spiel';
+    svg.appendChild(axisTitle);
+  }
+
+  /* ---------- Matches ---------- */
+  function renderMatches() {
+    const matches = load(K_MATCHES);
+    const upcoming = matches.filter((m) => !hasResult(m)).sort((a, b) => a.date.localeCompare(b.date));
+    const results = matches.filter(hasResult).sort((a, b) => b.date.localeCompare(a.date));
+
+    const upcList = document.getElementById('upcoming-list');
+    document.getElementById('upcoming-empty').style.display = upcoming.length ? 'none' : 'block';
+    upcList.innerHTML = upcoming.map((m) => `
+      <li class="item" data-id="${m.id}">
+        <span class="tag ${m.ha === 'H' ? 'home' : 'away'}">${m.ha === 'H' ? 'Heim' : 'Ausw.'}</span>
+        <div class="main">
+          <div class="opp">${m.opponent}</div>
+          <div class="meta">${m.day} · ${formatDate(m.date)}${m.time ? ' · ' + m.time + ' Uhr' : ''}</div>
+        </div>
+        <div class="result-input">
+          <input type="number" min="0" class="score-us" placeholder="–">
+          <span>:</span>
+          <input type="number" min="0" class="score-them" placeholder="–">
+          <button type="button" class="btn btn-primary save-result">Speichern</button>
+        </div>
+        <button class="btn btn-ghost del-match" title="Löschen">✕</button>
+      </li>
+    `).join('');
+
+    const resList = document.getElementById('results-list');
+    document.getElementById('results-empty').style.display = results.length ? 'none' : 'block';
+    resList.innerHTML = results.map((m) => `
+      <li class="item" data-id="${m.id}">
+        <span class="tag ${m.ha === 'H' ? 'home' : 'away'}">${m.ha === 'H' ? 'Heim' : 'Ausw.'}</span>
+        <div class="main">
+          <div class="opp">${m.opponent}</div>
+          <div class="meta">${m.day} · ${formatDate(m.date)}</div>
+        </div>
+        <span class="score ${resultClass(m)}">${m.us}:${m.them}</span>
+        <button class="btn btn-ghost del-match" title="Löschen">✕</button>
+      </li>
+    `).join('');
+
+    document.querySelectorAll('.del-match').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const id = e.target.closest('.item').dataset.id;
+        save(K_MATCHES, load(K_MATCHES).filter((m) => m.id !== id));
+        renderAll();
+      });
+    });
+    document.querySelectorAll('.save-result').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const li = e.target.closest('.item');
+        const id = li.dataset.id;
+        const us = li.querySelector('.score-us').value;
+        const them = li.querySelector('.score-them').value;
+        if (us === '' || them === '') return;
+        const all = load(K_MATCHES);
+        const m = all.find((x) => x.id === id);
+        m.us = Number(us);
+        m.them = Number(them);
+        save(K_MATCHES, all);
+        renderAll();
+      });
+    });
+  }
+
+  document.getElementById('match-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const us = document.getElementById('m-us').value;
+    const them = document.getElementById('m-them').value;
+    const matches = load(K_MATCHES);
+    matches.push({
+      id: 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      day: document.getElementById('m-day').value,
+      ha: document.getElementById('m-ha').value,
+      opponent: document.getElementById('m-opp').value,
+      date: document.getElementById('m-date').value,
+      time: document.getElementById('m-time').value,
+      us: us === '' ? null : Number(us),
+      them: them === '' ? null : Number(them),
+    });
+    save(K_MATCHES, matches);
+    e.target.reset();
+    renderAll();
+  });
+
+  /* ---------- Players ---------- */
+  function renderPlayers() {
+    const players = load(K_PLAYERS);
+    const groups = document.getElementById('squad-groups');
+    document.getElementById('squad-empty').style.display = players.length ? 'none' : 'block';
+
+    groups.innerHTML = POSITIONS.filter((pos) => players.some((p) => p.pos === pos)).map((pos) => `
+      <div class="subhead">${pos}</div>
+      <ul class="list">
+        ${players.filter((p) => p.pos === pos).map((p) => `
+          <li class="item" data-id="${p.id}">
+            <span class="player-num">${p.num || '–'}</span>
+            <div class="main"><div class="opp">${p.name}</div></div>
+            <button class="btn btn-ghost del-player" title="Löschen">✕</button>
+          </li>
+        `).join('')}
+      </ul>
+    `).join('');
+
+    document.querySelectorAll('.del-player').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const id = e.target.closest('.item').dataset.id;
+        save(K_PLAYERS, load(K_PLAYERS).filter((p) => p.id !== id));
+        renderAll();
+      });
+    });
+  }
+
+  document.getElementById('player-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const players = load(K_PLAYERS);
+    players.push({
+      id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      name: document.getElementById('p-name').value,
+      num: document.getElementById('p-num').value,
+      pos: document.getElementById('p-pos').value,
+    });
+    save(K_PLAYERS, players);
+    e.target.reset();
+    renderAll();
+  });
+
+  /* ---------- Trainings ---------- */
+  function renderTrainings() {
+    const trainings = load(K_TRAININGS).sort((a, b) => a.date.localeCompare(b.date));
+    const list = document.getElementById('training-list');
+    document.getElementById('training-empty').style.display = trainings.length ? 'none' : 'block';
+
+    list.innerHTML = trainings.map((t) => {
+      const past = t.date < TODAY;
+      return `
+      <li class="item" data-id="${t.id}" style="${past ? 'opacity:.55;' : ''}">
+        <div class="main">
+          <div class="opp">${formatDate(t.date)}${t.time ? ' · ' + t.time + ' Uhr' : ''}</div>
+          <div class="meta">${[t.loc, t.note].filter(Boolean).join(' · ') || 'Kein Hinweis'}</div>
+        </div>
+        <button class="btn btn-ghost del-training" title="Löschen">✕</button>
+      </li>
+    `;
+    }).join('');
+
+    document.querySelectorAll('.del-training').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const id = e.target.closest('.item').dataset.id;
+        save(K_TRAININGS, load(K_TRAININGS).filter((t) => t.id !== id));
+        renderAll();
+      });
+    });
+  }
+
+  document.getElementById('training-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const trainings = load(K_TRAININGS);
+    trainings.push({
+      id: 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      date: document.getElementById('t-date').value,
+      time: document.getElementById('t-time').value,
+      loc: document.getElementById('t-loc').value,
+      note: document.getElementById('t-note').value,
+    });
+    save(K_TRAININGS, trainings);
+    e.target.reset();
+    renderAll();
+  });
+
+  function renderAll() {
+    renderStats();
+    renderChart();
+    renderMatches();
+    renderPlayers();
+    renderTrainings();
+  }
+
+  document.getElementById('m-date').valueAsDate = new Date();
+  document.getElementById('t-date').valueAsDate = new Date();
+  renderAll();
+</script>
+</body>
+</html>
