@@ -753,23 +753,31 @@
   document.getElementById('pg-prev').addEventListener('click', () => { if (page > 1) { page--; renderTable(applyFilters()); } });
   document.getElementById('pg-next').addEventListener('click', () => { page++; renderTable(applyFilters()); });
 
-  fetch('./ue-lieferungen-data.json')
-    .then((r) => {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    })
-    .then((data) => {
-      RAW = data.filter((r) => !isExcludedMachine(r.maschine));
-      const dates = RAW.map((r) => r.meldedatum).filter(Boolean).sort();
-      const stand = dates.length ? fmtDate(dates[dates.length - 1]) : '–';
-      document.getElementById('load-status').textContent = `${RAW.length.toLocaleString('de-CH')} Datensätze geladen · Datenstand (neuester Report): ${stand}`;
-      populateFilterOptions();
-      render();
-    })
-    .catch((err) => {
-      document.getElementById('load-status').textContent =
-        'Fehler beim Laden von ue-lieferungen-data.json: ' + err.message + ' — bitte über den lokalen Server öffnen (nicht als file://) und sicherstellen, dass das Extraktionsskript bereits gelaufen ist.';
-    });
+  function initWithData(data) {
+    RAW = data.filter((r) => !isExcludedMachine(r.maschine));
+    const dates = RAW.map((r) => r.meldedatum).filter(Boolean).sort();
+    const stand = dates.length ? fmtDate(dates[dates.length - 1]) : '–';
+    document.getElementById('load-status').textContent = `${RAW.length.toLocaleString('de-CH')} Datensätze geladen · Datenstand (neuester Report): ${stand}`;
+    populateFilterOptions();
+    render();
+  }
+
+  // Eigenstaendige Version: Daten sind bereits als window.__UE_DATA__ eingebettet
+  // (siehe tools/extract-ue-lieferungen.ps1), kein fetch() und kein Server noetig.
+  if (window.__UE_DATA__) {
+    initWithData(window.__UE_DATA__);
+  } else {
+    fetch('./ue-lieferungen-data.json')
+      .then((r) => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(initWithData)
+      .catch((err) => {
+        document.getElementById('load-status').textContent =
+          'Fehler beim Laden von ue-lieferungen-data.json: ' + err.message + ' — bitte über den lokalen Server öffnen (nicht als file://) und sicherstellen, dass das Extraktionsskript bereits gelaufen ist.';
+      });
+  }
 </script>
 </body>
 </html>

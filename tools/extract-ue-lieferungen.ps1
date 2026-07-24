@@ -221,3 +221,23 @@ $outDir = Split-Path $OutFile -Parent
 if ($outDir -and -not (Test-Path $outDir)) { New-Item -ItemType Directory -Force -Path $outDir | Out-Null }
 $final | ConvertTo-Json -Depth 5 | Out-File -FilePath $OutFile -Encoding utf8
 Write-Output "Geschrieben nach: $OutFile"
+
+# Eigenstaendige Browser-Version: Dashboard-Template + Daten in einer Datei,
+# damit sie per Doppelklick (file://) ohne lokalen Server geoeffnet werden kann.
+$templatePath = Join-Path $PSScriptRoot "..\ue-lieferungen-dashboard.html"
+$standaloneOut = Join-Path $PSScriptRoot "..\ue-lieferungen-dashboard-standalone.html"
+if (Test-Path $templatePath) {
+    $template = Get-Content -Path $templatePath -Raw -Encoding UTF8
+    $jsonInline = $final | ConvertTo-Json -Depth 5 -Compress
+    $dataScript = "<script>window.__UE_DATA__ = $jsonInline;</script>`n"
+    $scriptTagIndex = $template.IndexOf("<script>")
+    if ($scriptTagIndex -ge 0) {
+        $standalone = $template.Insert($scriptTagIndex, $dataScript)
+        [System.IO.File]::WriteAllText($standaloneOut, $standalone, (New-Object System.Text.UTF8Encoding($true)))
+        Write-Output "Eigenstaendige Browser-Version geschrieben nach: $standaloneOut"
+    } else {
+        Write-Warning "Konnte <script>-Tag im Dashboard-Template nicht finden - eigenstaendige Version nicht erzeugt."
+    }
+} else {
+    Write-Warning "Dashboard-Template nicht gefunden ($templatePath) - eigenstaendige Version nicht erzeugt."
+}
