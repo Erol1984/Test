@@ -1,3 +1,5 @@
 .claude/settings.local.json
 ue-lieferungen-data.json
 ue-lieferungen-dashboard-standalone.html
+mail-stats-data.json
+mail-stats-dashboard-standalone.html
