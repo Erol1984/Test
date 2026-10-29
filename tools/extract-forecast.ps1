@@ -19,6 +19,19 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$logFile = Join-Path $PSScriptRoot "extract-forecast.log"
+
+function Write-Log($msg) {
+    $line = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  $msg"
+    Add-Content -Path $logFile -Value $line
+    Write-Output $line
+}
+
+# Laeuft taeglich als geplante Aufgabe - Fehler landen im Log statt nur in der Konsole
+trap {
+    Write-Log "FEHLER: $_"
+    exit 1
+}
 
 function Get-Grid($ws) {
     $ur = $ws.UsedRange
@@ -138,7 +151,7 @@ function Read-KwArt($ws) {
     return @($acc.Values)
 }
 
-Write-Output "Verbinde mit Outlook..."
+Write-Log "Verbinde mit Outlook..."
 $outlook = New-Object -ComObject Outlook.Application
 $inbox = $outlook.GetNamespace("MAPI").GetDefaultFolder(6)
 
@@ -166,11 +179,11 @@ $wgNames = @{}
 try {
     foreach ($plant in @("MBB", "MBW")) {
         $mail = $latest[$plant]
-        if (-not $mail) { Write-Output "  ${plant}: keine Mail gefunden"; continue }
+        if (-not $mail) { Write-Log "  ${plant}: keine Mail gefunden"; continue }
         $att = $mail.Attachments | Where-Object { $_.FileName -like "*.xlsx" } | Select-Object -First 1
         $path = Join-Path $tmp $att.FileName
         $att.SaveAsFile($path)
-        Write-Output "  ${plant}: $($mail.Subject) ($($mail.ReceivedTime))"
+        Write-Log "  ${plant}: $($mail.Subject) ($($mail.ReceivedTime))"
 
         $wb = $excel.Workbooks.Open($path, 0, $true)
         try {
@@ -186,7 +199,7 @@ try {
             rows     = $det.rows.ToArray()
             kwArt    = $kwArt
         }
-        Write-Output "    $($det.rows.Count) Auftragszeilen, $($kwArt.Count) KW/Auftragsart-Werte"
+        Write-Log "    $($det.rows.Count) Auftragszeilen, $($kwArt.Count) KW/Auftragsart-Werte"
     }
 } finally {
     $excel.Quit()
@@ -200,7 +213,7 @@ $out = [ordered]@{
 }
 $json = $out | ConvertTo-Json -Depth 6 -Compress
 [System.IO.File]::WriteAllText([System.IO.Path]::GetFullPath($OutFile), $json, (New-Object System.Text.UTF8Encoding $false))
-Write-Output "Daten -> $OutFile"
+Write-Log "Daten -> $OutFile"
 
 # Eigenstaendige Dashboard-Datei mit eingebetteten Daten erzeugen
 $template = "$PSScriptRoot\..\forecast-dashboard.html"
@@ -209,5 +222,5 @@ if (Test-Path $template) {
     $html = [System.IO.File]::ReadAllText([System.IO.Path]::GetFullPath($template), [System.Text.Encoding]::UTF8)
     $html = $html.Replace("/*__FORECAST_DATA__*/null", $json.Replace("</", "<\/"))
     [System.IO.File]::WriteAllText([System.IO.Path]::GetFullPath($standalone), $html, (New-Object System.Text.UTF8Encoding $false))
-    Write-Output "Dashboard -> $standalone"
+    Write-Log "Dashboard -> $standalone"
 }
