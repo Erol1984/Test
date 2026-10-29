@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forecast Fertigungsaufträge</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10); --hover: #f0efec;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10); --hover: #262624;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10); --hover: #262624;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 24px 16px 48px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; margin-bottom: 16px; }
+h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+.sub { color: var(--muted); font-size: 12px; }
+.filters { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; align-items: center; }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--ring); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: transparent; color: var(--ink-2); padding: 6px 12px; font: inherit; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--ring); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--ring); background: var(--surface); color: var(--ink-2); border-radius: 999px; padding: 4px 10px 4px 8px; font: inherit; font-size: 13px; cursor: pointer; }
+.chip::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; background: var(--c); vertical-align: -0.5px; }
+.chip[aria-pressed="false"] { opacity: 0.45; }
+.chip[aria-pressed="false"]::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--c); }
+.kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+.kpi { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+.kpi .lbl { color: var(--ink-2); font-size: 12px; }
+.kpi .val { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; margin-top: 2px; white-space: nowrap; }
+.kpi .note { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 16px; min-width: 0; }
+.card.wide { grid-column: 1 / -1; }
+.card h2 { font-size: 15px; margin: 0 0 2px; }
+.card .desc { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
+.card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--ink-2); margin-bottom: 8px; }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; background: var(--c); }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.bars { display: grid; gap: 6px; }
+.bar-row { display: grid; grid-template-columns: minmax(0, 40%) 1fr 64px; gap: 10px; align-items: center; font-size: 13px; border-radius: 6px; padding: 2px 4px; cursor: default; }
+.bar-row:hover { background: var(--hover); }
+.bar-row.click { cursor: pointer; }
+.bar-row .n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-row .v { text-align: right; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.bar-fill { height: 10px; background: var(--s1); border-radius: 0 4px 4px 0; min-width: 2px; }
+.tip { position: fixed; pointer-events: none; z-index: 10; background: var(--surface); color: var(--ink); border: 1px solid var(--ring);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12); border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.55; opacity: 0; transition: opacity .1s; font-variant-numeric: tabular-nums; max-width: 300px; }
+.tip b { font-weight: 600; }
+.tip .row { display: flex; justify-content: space-between; gap: 16px; }
+.tip .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+.tip .tot { border-top: 1px solid var(--grid); margin-top: 4px; padding-top: 4px; }
+.search { border: 1px solid var(--ring); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 6px 10px; font: inherit; width: 260px; max-width: 100%; }
+.active-filter { display: inline-flex; align-items: center; gap: 6px; background: var(--hover); border-radius: 999px; padding: 3px 4px 3px 10px; font-size: 13px; }
+.active-filter button { border: 0; background: transparent; color: var(--ink-2); cursor: pointer; font-size: 14px; padding: 0 6px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th { color: var(--ink-2); font-weight: 500; cursor: pointer; user-select: none; position: sticky; top: 0; background: var(--surface); }
+td.num, th.num { text-align: right; }
+td .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+.tablewrap { max-height: 480px; overflow: auto; }
+.notes { color: var(--ink-2); font-size: 12px; margin-top: 20px; padding-left: 18px; }
+.notes li { margin-bottom: 4px; }
+@media (max-width: 1000px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .grid { grid-template-columns: minmax(0, 1fr); } .kpi .val { font-size: 22px; } }
+@media (max-width: 520px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Forecast Fertigungsaufträge</h1>
+    <div class="sub" id="meta"></div>
+  </header>
+
+  <div class="filters">
+    <div class="seg" id="f-plant" role="group" aria-label="Werk">
+      <button data-v="all" aria-pressed="true">Beide Werke</button><button data-v="MBB">MBB</button><button data-v="MBW">MBW</button>
+    </div>
+    <div class="seg" id="f-unit" role="group" aria-label="Einheit">
+      <button data-v="m2" aria-pressed="true">m²</button><button data-v="st">Stück</button>
+    </div>
+    <div class="seg" id="f-horizon" role="group" aria-label="Horizont">
+      <button data-v="8">8 KW</button><button data-v="16" aria-pressed="true">16 KW</button><button data-v="0">Alle</button>
+    </div>
+    <div class="chips" id="f-wg" role="group" aria-label="Warengruppen"></div>
+    <span id="f-active"></span>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="grid">
+    <div class="card wide">
+      <h2>Forecast nach Kalenderwoche</h2><p class="desc">Nach Liefertermin, gestapelt nach Warengruppe</p>
+      <div class="legend" id="lg-wg"></div>
+      <div id="c-kw"></div>
+    </div>
+    <div class="card wide">
+      <h2>Forecast nach Auftragsart</h2><p class="desc">Kundenaufträge gegenüber Lagerartikeln je KW (Kunden- und Maschinenfilter wirken hier nicht)</p>
+      <div class="legend" id="lg-art"></div>
+      <div id="c-art"></div>
+    </div>
+    <div class="card">
+      <h2>Top-Kunden</h2><p class="desc">Die 12 größten Kunden im Forecast. Klick filtert das Dashboard.</p>
+      <div id="c-kunden" class="bars"></div>
+    </div>
+    <div class="card">
+      <h2>Kundengruppen</h2><p class="desc">Klick filtert das Dashboard</p>
+      <div id="c-kgrp" class="bars"></div>
+    </div>
+    <div class="card wide">
+      <h2>Maschinen nach dem Wellpappenanlage-Arbeitsgang</h2><p class="desc">Forecast-Menge, die über die jeweilige Maschine läuft (2.–4. Maschine des Auftrags). Klick filtert das Dashboard.</p>
+      <div id="c-masch" class="bars"></div>
+    </div>
+    <div class="card wide">
+      <div class="card-head">
+        <div><h2>Aufträge</h2><p class="desc" id="t-desc"></p></div>
+        <input class="search" id="q" type="search" placeholder="Kunde, Auftrag, Qualität suchen …" aria-label="Aufträge durchsuchen">
+      </div>
+      <div class="tablewrap"><table id="t-orders"></table></div>
+    </div>
+  </div>
+
+  <ul class="notes">
+    <li>Quelle: die jeweils neueste Mail „MBB_Fertigungsauftragseingang_Forecast“ bzw. „MBW_Forecast_Fertigungsaufträge“ von Model Group BOEP, Blätter „Details nach Tag“ und „Gesamt KW Auftragsart“.</li>
+    <li>Die Kalenderwoche wird aus dem Liefertermin („Liefert. Plan“) berechnet. Der Horizont fasst alles danach in der Säule „später“ zusammen. Termine vor dem Reportdatum gibt es im Export nicht.</li>
+    <li>Maschinen werden nur mit SAP-Nummer angezeigt, Namen sind im Export nicht enthalten. Die 1. Maschine ist bei allen Aufträgen dieselbe (MBB 31611001, MBW 31621001), vermutlich die Wellpappenanlage, und wird deshalb nicht einzeln ausgewertet.</li>
+    <li>Auftragsarten: PP04 = Kundenauftrag (MTO), PP01 = Lagerartikel mit Kontrakt, ZLAG = Lagerartikel ohne Kontrakt. Z1HP ist im Report nicht erklärt.</li>
+  </ul>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+const DATA = /*__FORECAST_DATA__*/null;
+
+const WG_ORDER = ["0135", "0138", "0140", "0145", "0150"];
+const WG_COLOR = { "0135": "var(--s1)", "0138": "var(--s2)", "0140": "var(--s3)", "0145": "var(--s4)", "0150": "var(--s5)" };
+// SAP kürzt "Stanz+Klebeverpackung" auf 20 Zeichen
+const WG_NAME = Object.assign({}, DATA.wgNames, { "0150": "Stanz+Klebeverpackung" });
+const ART_ORDER = ["PP04", "PP01", "ZLAG", "Z1HP"];
+const ART_COLOR = { PP04: "var(--s1)", PP01: "var(--s2)", ZLAG: "var(--s3)", Z1HP: "var(--s4)" };
+const ART_NAME = { PP04: "Kundenauftrag (PP04)", PP01: "Lager mit Kontrakt (PP01)", ZLAG: "Lager ohne Kontrakt (ZLAG)", Z1HP: "Z1HP" };
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const nf = new Intl.NumberFormat("de-CH", { maximumFractionDigits: 0 });
+const fmt = n => nf.format(n);
+function fmtShort(n) {
+  if (Math.abs(n) >= 1e6) return (n / 1e6).toLocaleString("de-CH", { maximumFractionDigits: 2 }) + " Mio.";
+  if (Math.abs(n) >= 1e4) return (n / 1e3).toLocaleString("de-CH", { maximumFractionDigits: 0 }) + " Tsd.";
+  return fmt(n);
+}
+const unitLbl = () => state.unit === "m2" ? "m²" : "Stk.";
+
+function isoWeek(s) {
+  const d = new Date(Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)));
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day);
+  const y = d.getUTCFullYear();
+  const w = Math.ceil(((d - Date.UTC(y, 0, 1)) / 864e5 + 1) / 7);
+  return `${y}-W${String(w).padStart(2, "0")}`;
+}
+const kwLabel = k => `KW ${+k.slice(6)}`;
+
+const ROWS = [];
+for (const [plant, p] of Object.entries(DATA.plants))
+  p.rows.forEach(r => ROWS.push({ ...r, plant, kw: isoWeek(r.d), m: r.m || [] }));
+const KWART = [];
+for (const [plant, p] of Object.entries(DATA.plants)) p.kwArt.forEach(r => KWART.push({ ...r, plant }));
+const WGS = WG_ORDER.filter(w => ROWS.some(r => r.wg === w));
+const ARTS = ART_ORDER.filter(a => KWART.some(r => r.art === a)).concat([...new Set(KWART.map(r => r.art))].filter(a => !ART_ORDER.includes(a)));
+const firstKw = ROWS.reduce((m, r) => r.kw < m ? r.kw : m, "9999");
+
+const state = { plant: "all", unit: "m2", horizon: 16, wg: new Set(WGS), focus: null, q: "", sort: { key: "d", dir: 1 } };
+
+function baseRows() {
+  return ROWS.filter(r => (state.plant === "all" || r.plant === state.plant) && state.wg.has(r.wg));
+}
+function focusOk(r) {
+  const f = state.focus;
+  if (!f) return true;
+  if (f.type === "kunde") return r.kunde === f.v;
+  if (f.type === "kgrp") return r.kgrp === f.v;
+  if (f.type === "masch") return r.m.slice(1).includes(f.v);
+  return true;
+}
+
+// KW-Achse: die ersten N Wochen ab Reportwoche, Rest in "später"
+function kwBuckets(rowsKw) {
+  const all = [...new Set(rowsKw)].sort();
+  if (!state.horizon) return { cats: all, map: k => k };
+  const cats = [];
+  let [y, w] = [+firstKw.slice(0, 4), +firstKw.slice(6)];
+  for (let i = 0; i < state.horizon; i++) {
+    cats.push(`${y}-W${String(w).padStart(2, "0")}`);
+    w++;
+    const maxW = isoWeek(`${y}-12-28`).slice(6);
+    if (w > +maxW) { w = 1; y++; }
+  }
+  const last = cats[cats.length - 1];
+  const hasLater = all.some(k => k > last);
+  if (hasLater) cats.push("später");
+  return { cats, map: k => k > last ? "später" : k };
+}
+
+// --- Tooltip ---
+const tip = document.getElementById("tip");
+function showTip(html, ev) {
+  tip.innerHTML = html; tip.style.opacity = 1;
+  const r = tip.getBoundingClientRect();
+  let x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14;
+  if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - 14;
+  tip.style.left = Math.max(8, x) + "px"; tip.style.top = Math.max(8, y) + "px";
+}
+const hideTip = () => { tip.style.opacity = 0; };
+
+// --- Gestapelte Säulen ---
+function stacked(el, cats, series, val, title) {
+  const W = Math.max(320, el.clientWidth), H = 280, m = { t: 12, r: 8, b: 26, l: 56 };
+  const iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const totals = cats.map((c, i) => series.reduce((s, se) => s + val(i, se.key), 0));
+  const max = Math.max(1, ...totals);
+  const mag = Math.pow(10, Math.floor(Math.log10(max)));
+  const step = [1, 2, 2.5, 5, 10].map(f => f * mag).find(s => max / s <= 5);
+  const top = Math.ceil(max / step) * step;
+  const y = v => m.t + ih - v / top * ih;
+  const bw = iw / cats.length, gap = Math.min(10, bw * 0.25);
+  let s = "";
+  for (let v = 0; v <= top + 1e-9; v += step)
+    s += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(${v ? "--grid" : "--axis"})"/><text x="${m.l - 6}" y="${y(v) + 4}" text-anchor="end">${fmtShort(v)}</text>`;
+  const every = Math.ceil(cats.length / Math.max(2, Math.floor(iw / 48)));
+  cats.forEach((c, i) => {
+    const x = m.l + i * bw + gap / 2, w = bw - gap;
+    let acc = 0;
+    const segs = series.map(se => ({ se, v: val(i, se.key) })).filter(p => p.v > 0);
+    segs.forEach((p, j) => {
+      const y1 = y(acc), y0 = y(acc + p.v);
+      const h = Math.max(0, y1 - y0 - (j < segs.length - 1 ? 2 : 0)); // 2px Fuge zwischen Segmenten
+      const isTop = j === segs.length - 1, r = Math.min(4, h, w / 2);
+      s += isTop && h > 0
+        ? `<path d="M${x},${y1}V${y0 + r}q0,-${r} ${r},-${r}h${w - 2 * r}q${r},0 ${r},${r}V${y1}Z" fill="${p.se.color}"/>`
+        : `<rect x="${x}" y="${y1 - h}" width="${w}" height="${h}" fill="${p.se.color}"/>`;
+      acc += p.v;
+    });
+    if (i % every === 0 || c === "später")
+      s += `<text x="${x + w / 2}" y="${H - 6}" text-anchor="middle">${c === "später" ? "später" : kwLabel(c)}</text>`;
+    s += `<rect class="hit" x="${m.l + i * bw}" y="${m.t}" width="${bw}" height="${ih}" fill="transparent" data-i="${i}"/>`;
+  });
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)}">${s}</svg>`;
+  el.querySelectorAll(".hit").forEach(r => {
+    const i = +r.dataset.i, c = cats[i];
+    r.addEventListener("pointermove", ev => {
+      const head = c === "später" ? `Nach ${kwLabel(cats[cats.length - 2])}` : `${kwLabel(c)} ${c.slice(0, 4)}`;
+      const lines = series.slice().reverse().filter(se => val(i, se.key) > 0).map(se =>
+        `<div class="row"><span><span class="sw" style="background:${se.color}"></span>${esc(se.label)}</span><span>${fmt(val(i, se.key))}</span></div>`).join("");
+      showTip(`<b>${head}</b>${lines}<div class="row tot"><span>Gesamt</span><b>${fmt(totals[i])} ${unitLbl()}</b></div>`, ev);
+    });
+    r.addEventListener("pointerleave", hideTip);
+  });
+}
+
+function legend(id, series) {
+  document.getElementById(id).innerHTML = series.map(s => `<span style="--c:${s.color}">${esc(s.label)}</span>`).join("");
+}
+
+function renderKw(rows) {
+  const { cats, map } = kwBuckets(rows.map(r => r.kw));
+  const idx = Object.fromEntries(cats.map((c, i) => [c, i]));
+  const series = WGS.filter(w => state.wg.has(w)).map(w => ({ key: w, label: WG_NAME[w] || w, color: WG_COLOR[w] }));
+  const M = cats.map(() => ({}));
+  rows.forEach(r => { const i = idx[map(r.kw)]; if (i != null) M[i][r.wg] = (M[i][r.wg] || 0) + r[state.unit]; });
+  legend("lg-wg", series);
+  stacked(document.getElementById("c-kw"), cats, series, (i, k) => M[i][k] || 0, "Forecast nach Kalenderwoche");
+}
+
+function renderArt() {
+  const rows = KWART.filter(r => (state.plant === "all" || r.plant === state.plant) && state.wg.has(r.wg));
+  const { cats, map } = kwBuckets(rows.map(r => r.kw));
+  const idx = Object.fromEntries(cats.map((c, i) => [c, i]));
+  const series = ARTS.map(a => ({ key: a, label: ART_NAME[a] || a, color: ART_COLOR[a] || "var(--muted)" }));
+  const M = cats.map(() => ({}));
+  rows.forEach(r => { const i = idx[map(r.kw)]; if (i != null) M[i][r.art] = (M[i][r.art] || 0) + r[state.unit]; });
+  legend("lg-art", series);
+  stacked(document.getElementById("c-art"), cats, series, (i, k) => M[i][k] || 0, "Forecast nach Auftragsart");
+}
+
+// --- Balkenlisten ---
+function sumBy(rows, keyFn) {
+  const c = new Map();
+  rows.forEach(r => { for (const k of [].concat(keyFn(r))) if (k) c.set(k, (c.get(k) || 0) + r[state.unit]); });
+  return [...c.entries()].sort((a, b) => b[1] - a[1]);
+}
+function barList(el, entries, n, type) {
+  const total = entries.reduce((s, e) => s + e[1], 0) || 1;
+  let rows = entries.slice(0, n);
+  const rest = entries.slice(n);
+  if (rest.length) rows = rows.concat([[`Übrige (${rest.length})`, rest.reduce((s, e) => s + e[1], 0), true]]);
+  // Skala nur über die Einzeleinträge, sonst drückt "Übrige" alle Balken flach
+  const max = Math.max(1, ...rows.filter(r => !r[2]).map(r => r[1]));
+  el.innerHTML = rows.map(([name, v, other]) =>
+    `<div class="bar-row${other ? "" : " click"}" data-v="${esc(name)}" data-other="${other ? 1 : ""}" data-tip="<b>${esc(name)}</b><br>${fmt(v)} ${unitLbl()} (${(v / total * 100).toLocaleString("de-CH", { maximumFractionDigits: 1 })} %)">
+      <div class="n" title="${esc(name)}">${esc(name)}</div>
+      <div><div class="bar-fill" style="width:${Math.min(100, v / max * 100)}%;${other ? "background:var(--muted);border-radius:0" : ""}"></div></div>
+      <div class="v">${fmtShort(v)}</div></div>`).join("") || `<div class="sub">Keine Daten</div>`;
+  el.querySelectorAll(".bar-row").forEach(r => {
+    r.addEventListener("pointermove", ev => showTip(r.dataset.tip, ev));
+    r.addEventListener("pointerleave", hideTip);
+    if (!r.dataset.other) r.addEventListener("click", () => { state.focus = { type, v: r.dataset.v }; hideTip(); render(); });
+  });
+}
+
+// --- KPIs ---
+function renderKpis(rows) {
+  const u = state.unit;
+  const tot = rows.reduce((s, r) => s + r[u], 0);
+  const next4 = (() => {
+    const k = []; let [y, w] = [+firstKw.slice(0, 4), +firstKw.slice(6)];
+    for (let i = 0; i < 4; i++) { k.push(`${y}-W${String(w).padStart(2, "0")}`); if (++w > +isoWeek(`${y}-12-28`).slice(6)) { w = 1; y++; } }
+    return rows.filter(r => k.includes(r.kw)).reduce((s, r) => s + r[u], 0);
+  })();
+  const orders = new Set(rows.map(r => r.plant + r.auf)).size;
+  const kunden = new Set(rows.map(r => r.kunde)).size;
+  const art = KWART.filter(r => (state.plant === "all" || r.plant === state.plant) && state.wg.has(r.wg));
+  const artTot = art.reduce((s, r) => s + r[u], 0) || 1;
+  const mto = art.filter(r => r.art === "PP04").reduce((s, r) => s + r[u], 0);
+  const plants = state.plant === "all" ? Object.keys(DATA.plants) : [state.plant];
+  const split = plants.length > 1 ? plants.map(p => `${p} ${fmtShort(rows.filter(r => r.plant === p).reduce((s, r) => s + r[u], 0))}`).join(" · ") : `Werk ${plants[0]}`;
+  const k = [
+    [`Forecast gesamt (${unitLbl()})`, fmtShort(tot), split],
+    ["Nächste 4 KW", fmtShort(next4), `${tot ? Math.round(next4 / tot * 100) : 0} % des Forecasts`],
+    ["Aufträge", fmt(orders), `Ø ${fmt(orders ? tot / orders : 0)} ${unitLbl()} je Auftrag`],
+    ["Kunden", fmt(kunden), state.focus ? "im aktuellen Filter" : "mit Aufträgen im Forecast"],
+    ["Kundenaufträge (PP04)", `${Math.round(mto / artTot * 100)} %`, `Rest Lagerartikel, ohne Kundenfilter`],
+    ["Letzter Liefertermin", rows.length ? new Date(rows.reduce((m, r) => r.d > m ? r.d : m, "")).toLocaleDateString("de-CH") : "–", `${kwBuckets(rows.map(r => r.kw)).cats.length} KW im Diagramm`],
+  ];
+  document.getElementById("kpis").innerHTML = k.map(([l, v, n]) =>
+    `<div class="kpi"><div class="lbl">${l}</div><div class="val">${v}</div><div class="note">${n}</div></div>`).join("");
+}
+
+// --- Tabelle ---
+function renderTable(rows) {
+  const q = state.q.trim().toLowerCase();
+  if (q) rows = rows.filter(r => `${r.kunde} ${r.kdnr} ${r.auf} ${r.q} ${r.kgrp} ${r.m.join(" ")}`.toLowerCase().includes(q));
+  const { key, dir } = state.sort;
+  const get = r => key === "wg" ? WG_NAME[r.wg] : key === "m" ? r.m.slice(1).join(",") : r[key];
+  rows = rows.slice().sort((a, b) => { const x = get(a), y = get(b); return (x > y ? 1 : x < y ? -1 : 0) * dir; });
+  const LIMIT = 300;
+  const cols = [["d", "Liefertermin"], ["plant", "Werk"], ["auf", "Auftrag"], ["kunde", "Kunde"], ["kgrp", "Kundengruppe"], ["wg", "Warengruppe"], ["q", "Qualität"], ["m", "Maschinen"], ["st", "Stück", 1], ["m2", "m²", 1]];
+  document.getElementById("t-desc").textContent = rows.length > LIMIT
+    ? `${fmt(rows.length)} Aufträge, die ersten ${LIMIT} werden angezeigt. Spaltenkopf zum Sortieren anklicken.`
+    : `${fmt(rows.length)} Aufträge. Spaltenkopf zum Sortieren anklicken.`;
+  const t = document.getElementById("t-orders");
+  t.innerHTML = `<thead><tr>${cols.map(([k, l, num]) => `<th data-k="${k}" class="${num ? "num" : ""}">${l}${k === key ? (dir > 0 ? " ▲" : " ▼") : ""}</th>`).join("")}</tr></thead>
+    <tbody>${rows.slice(0, LIMIT).map(r => `<tr>
+      <td>${new Date(r.d).toLocaleDateString("de-CH")}</td><td>${r.plant}</td><td>${esc(r.auf)}</td><td>${esc(r.kunde)}</td><td>${esc(r.kgrp)}</td>
+      <td><span class="sw" style="background:${WG_COLOR[r.wg]}"></span>${esc(WG_NAME[r.wg] || r.wg)}</td><td>${esc(r.q)}</td><td>${esc(r.m.slice(1).join(", "))}</td>
+      <td class="num">${fmt(r.st)}</td><td class="num">${fmt(r.m2)}</td></tr>`).join("")}</tbody>`;
+  t.querySelectorAll("th").forEach(th => th.addEventListener("click", () => {
+    const k = th.dataset.k;
+    state.sort = { key: k, dir: state.sort.key === k ? -state.sort.dir : (k === "st" || k === "m2" ? -1 : 1) };
+    renderTable(baseRows().filter(focusOk));
+  }));
+}
+
+function renderFocus() {
+  const el = document.getElementById("f-active");
+  const f = state.focus;
+  const lbl = { kunde: "Kunde", kgrp: "Kundengruppe", masch: "Maschine" };
+  el.innerHTML = f ? `<span class="active-filter">${lbl[f.type]}: <b>${esc(f.v)}</b><button aria-label="Filter entfernen">✕</button></span>` : "";
+  if (f) el.querySelector("button").addEventListener("click", () => { state.focus = null; render(); });
+}
+
+function render() {
+  const base = baseRows();
+  const rows = base.filter(focusOk);
+  renderFocus();
+  renderKpis(rows);
+  renderKw(rows);
+  renderArt();
+  barList(document.getElementById("c-kunden"), sumBy(rows, r => r.kunde), 12, "kunde");
+  barList(document.getElementById("c-kgrp"), sumBy(rows, r => r.kgrp), 10, "kgrp");
+  barList(document.getElementById("c-masch"), sumBy(rows, r => r.m.slice(1)), 15, "masch");
+  renderTable(rows);
+}
+
+function bindSeg(id, prop, cast = v => v) {
+  document.querySelectorAll(`#${id} button`).forEach(b => b.addEventListener("click", () => {
+    document.querySelectorAll(`#${id} button`).forEach(x => x.setAttribute("aria-pressed", x === b));
+    state[prop] = cast(b.dataset.v);
+    render();
+  }));
+}
+bindSeg("f-plant", "plant");
+bindSeg("f-unit", "unit");
+bindSeg("f-horizon", "horizon", Number);
+
+const chips = document.getElementById("f-wg");
+chips.innerHTML = WGS.map(w => `<button class="chip" style="--c:${WG_COLOR[w]}" data-wg="${w}" aria-pressed="true">${esc(WG_NAME[w] || w)}</button>`).join("");
+chips.querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => {
+  const w = c.dataset.wg;
+  if (state.wg.has(w) && state.wg.size === 1) return;
+  state.wg.has(w) ? state.wg.delete(w) : state.wg.add(w);
+  c.setAttribute("aria-pressed", state.wg.has(w));
+  render();
+}));
+
+let qt; document.getElementById("q").addEventListener("input", e => {
+  clearTimeout(qt); qt = setTimeout(() => { state.q = e.target.value; renderTable(baseRows().filter(focusOk)); }, 150);
+});
+
+document.getElementById("meta").textContent = Object.entries(DATA.plants)
+  .map(([p, v]) => `${p}: Mail vom ${new Date(v.received).toLocaleString("de-CH", { dateStyle: "medium", timeStyle: "short" })}`).join(" · ");
+let rw; addEventListener("resize", () => { clearTimeout(rw); rw = setTimeout(render, 150); });
+render();
+</script>
+</body>
+</html>
