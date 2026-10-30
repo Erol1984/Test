@@ -6,3 +6,4 @@ mail-stats-dashboard-standalone.html
 forecast-data.json
 forecast-dashboard-standalone.html
 tools/extract-forecast.log
+scripts/*.log
