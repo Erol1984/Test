@@ -7,3 +7,7 @@ forecast-data.json
 forecast-dashboard-standalone.html
 tools/extract-forecast.log
 scripts/*.log
+stillstaende-data.json
+stillstaende-neu.json
+stillstaende-stand.json
+tools/extract-stillstaende.log
