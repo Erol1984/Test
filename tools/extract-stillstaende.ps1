@@ -2,8 +2,9 @@
   Sammelt die MBB-Stillstandsmeldungen eines Zeitraums aus dem ganzen Postfach
   (alle Ordner, auch Gesendete/Geloeschte) fuer das Dashboard "MBB Stillstaende".
 
-  Erfasst werden Mails, deren Betreff "ausfall", "stillst", "stoerung"/"Stoerung",
-  "defekt", "steht" oder "Schichtprotokoll" enthaelt UND die MBB betreffen:
+  Erfasst werden Mails an den Verteiler "MBB Stoerung (DL)" (An oder Cc, jeder
+  Betreff) sowie Mails, deren Betreff "ausfall", "stillst", "stoerung"/"Stoerung",
+  "defekt", "steht" oder "Schichtprotokoll" enthaelt, jeweils nur wenn sie MBB betreffen:
   Ordner MBB\..., Betreff mit MBB/Bentheim, Absender mit GAL-City "Bad Bentheim"
   oder MBB/Bad Bentheim im Text.
 
@@ -34,12 +35,15 @@ $ol = New-Object -ComObject Outlook.Application
 $ns = $ol.GetNamespace("MAPI")
 $root = $ns.DefaultStore.GetRootFolder()
 
-$subj = '"urn:schemas:httpmail:subject"'
-$likes = @('%ausfall%', '%stillst%', '%st_rung%', '%stoerung%', '%defekt%', '% steht%', '%Schichtprotokoll%') |
-    ForEach-Object { "$subj LIKE '$_'" }
-# Datum in DASL (UTC, ISO) - die Jet-Syntax [ReceivedTime] haengt vom Gebietsschema ab
+# Outlook filtert nur nach Datum (DASL, UTC, ISO - die Jet-Syntax [ReceivedTime] haengt vom
+# Gebietsschema ab). Betreff und Empfaenger prueft das Skript selbst: Restrict mit LIKE auf
+# Empfaengerfelder liefert bei Exchange keine Treffer, und viele Meldungen an den Verteiler
+# "MBB Stoerung (DL)" tragen nur den Maschinennamen im Betreff ("MWU", "Emba1", "MARTIN").
 $sinceUtc = $since.ToUniversalTime().ToString("yyyy-MM-dd HH:mm")
-$subjFilter = "@SQL=(""urn:schemas:httpmail:datereceived"" >= '$sinceUtc') AND (" + ($likes -join " OR ") + ")"
+$dateFilter = "@SQL=""urn:schemas:httpmail:datereceived"" >= '$sinceUtc'"
+# "." statt Umlaut, damit die Datei reines ASCII bleibt (PowerShell 5.1 liest sie sonst als ANSI)
+$subjectPattern = 'ausfall|stillst|st(oe|.)rung|defekt|\ssteht|Schichtprotokoll'
+$listPattern = 'MBB St(oe|.)rung'
 
 $cityCache = @{}
 function Get-City($it) {
@@ -71,15 +75,18 @@ $rows = New-Object System.Collections.ArrayList
 function Walk($f, $path) {
     if ($f.DefaultItemType -eq 0 -and $path -notlike '*Synchronisierungsprobleme*') {
         try {
-            $items = $f.Items.Restrict($subjFilter)
+            $items = $f.Items.Restrict($dateFilter)
             foreach ($it in $items) {
                 if ($it.Class -ne 43) { continue }
+                $toList = [bool](($it.To + ";" + $it.CC) -match $listPattern)
+                if (-not $toList -and $it.Subject -notmatch $subjectPattern) { continue }
                 $isMbb = ($path -like '*\MBB*') -or ($it.Subject -match 'MBB|Bentheim') -or ((Get-City $it) -eq 'Bad Bentheim')
                 if (-not $isMbb -and $it.Body -notmatch 'MBB|Bad Bentheim') { continue }
                 $null = $rows.Add([pscustomobject]@{
                     empfangen    = $it.ReceivedTime.ToString("yyyy-MM-dd HH:mm")
                     von          = $it.SenderName
                     betreff      = $it.Subject
+                    an_verteiler = $toList
                     konversation = $it.ConversationTopic
                     ordner       = $path
                     text         = Get-ShortBody $it.Body
