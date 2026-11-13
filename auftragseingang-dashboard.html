@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auftragseingang Fertigungsaufträge</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10); --hover: #f0efec; --out: #b9b7ae;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4;
+  --pos: #1a8f63; --neg: #c4512a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10); --hover: #262624; --out: #5a5955;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+    --pos: #3fbf8a; --neg: #e8794f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10); --hover: #262624; --out: #5a5955;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+  --pos: #3fbf8a; --neg: #e8794f;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 24px 16px 48px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; margin-bottom: 16px; }
+h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+.sub { color: var(--muted); font-size: 12px; }
+.filters { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; align-items: center; }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--ring); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: transparent; color: var(--ink-2); padding: 6px 12px; font: inherit; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--ring); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.seg.small button { padding: 4px 10px; font-size: 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--ring); background: var(--surface); color: var(--ink-2); border-radius: 999px; padding: 4px 10px 4px 8px; font: inherit; font-size: 13px; cursor: pointer; }
+.chip::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; background: var(--c); vertical-align: -0.5px; }
+.chip[aria-pressed="false"] { opacity: 0.45; }
+.chip[aria-pressed="false"]::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--c); }
+.kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+.kpi { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+.kpi .lbl { color: var(--ink-2); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi .val { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; margin-top: 2px; white-space: nowrap; }
+.kpi .val.pos { color: var(--pos); } .kpi .val.neg { color: var(--neg); }
+.kpi .note { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 16px; min-width: 0; }
+.card.wide { grid-column: 1 / -1; }
+.card h2 { font-size: 15px; margin: 0 0 2px; }
+.card .desc { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
+.card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--ink-2); margin-bottom: 8px; }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; background: var(--c); }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+svg .hit { cursor: pointer; }
+.bars { display: grid; gap: 6px; }
+.bar-row { display: grid; grid-template-columns: minmax(0, 40%) 1fr 64px; gap: 10px; align-items: center; font-size: 13px; border-radius: 6px; padding: 2px 4px; cursor: default; }
+.bar-row:hover { background: var(--hover); }
+.bar-row.click { cursor: pointer; }
+.bar-row .n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-row .v { text-align: right; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.bar-fill { height: 10px; background: var(--s1); border-radius: 0 4px 4px 0; min-width: 2px; }
+.tip { position: fixed; pointer-events: none; z-index: 10; background: var(--surface); color: var(--ink); border: 1px solid var(--ring);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12); border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.55; opacity: 0; transition: opacity .1s; font-variant-numeric: tabular-nums; max-width: 300px; }
+.tip b { font-weight: 600; }
+.tip .row { display: flex; justify-content: space-between; gap: 16px; }
+.tip .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+.tip .tot { border-top: 1px solid var(--grid); margin-top: 4px; padding-top: 4px; }
+.tip .hint { color: var(--muted); margin-top: 4px; }
+.search { border: 1px solid var(--ring); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 6px 10px; font: inherit; width: 260px; max-width: 100%; }
+.active-filter { display: inline-flex; align-items: center; gap: 6px; background: var(--hover); border-radius: 999px; padding: 3px 4px 3px 10px; font-size: 13px; margin-right: 6px; }
+.active-filter button { border: 0; background: transparent; color: var(--ink-2); cursor: pointer; font-size: 14px; padding: 0 6px; }
+.tabletools { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th { color: var(--ink-2); font-weight: 500; cursor: pointer; user-select: none; position: sticky; top: 0; background: var(--surface); }
+td.num, th.num { text-align: right; }
+td .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+td.pos { color: var(--pos); } td.neg { color: var(--neg); }
+.tablewrap { max-height: 480px; overflow: auto; }
+.notes { color: var(--ink-2); font-size: 12px; margin-top: 20px; padding-left: 18px; }
+.notes li { margin-bottom: 4px; }
+@media (max-width: 1000px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .grid { grid-template-columns: minmax(0, 1fr); } .kpi .val { font-size: 22px; } }
+@media (max-width: 520px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Auftragseingang Fertigungsaufträge</h1>
+    <div class="sub" id="meta"></div>
+  </header>
+
+  <div class="filters">
+    <div class="seg" id="f-plant" role="group" aria-label="Werk">
+      <button data-v="all" aria-pressed="true">Beide Werke</button><button data-v="MBB">MBB</button><button data-v="MBW">MBW</button>
+    </div>
+    <div class="seg" id="f-unit" role="group" aria-label="Einheit">
+      <button data-v="m2" aria-pressed="true">m²</button><button data-v="st">Stück</button><button data-v="n">Aufträge</button>
+    </div>
+    <div class="seg" id="f-period" role="group" aria-label="Zeitraum">
+      <button data-v="7">7 Tage</button><button data-v="14">14 Tage</button><button data-v="30" aria-pressed="true">30 Tage</button><button data-v="0">Alle</button>
+    </div>
+    <div class="chips" id="f-wg" role="group" aria-label="Warengruppen"></div>
+    <span id="f-active"></span>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="grid">
+    <div class="card wide">
+      <div class="card-head">
+        <div><h2>Eingang und Entfall</h2><p class="desc">Nach oben: neue Aufträge nach Warengruppe. Nach unten: entfallene Aufträge. Klick auf einen Balken zeigt die Aufträge unten in der Tabelle.</p></div>
+        <div class="seg small" id="f-gran" role="group" aria-label="Darstellung">
+          <button data-v="day" aria-pressed="true">Tag</button><button data-v="week">Woche</button>
+        </div>
+      </div>
+      <div class="legend" id="lg-flow"></div>
+      <div id="c-flow"></div>
+    </div>
+    <div class="card">
+      <h2>Top-Kunden im Eingang</h2><p class="desc">Neue Aufträge im Zeitraum. Klick filtert das Dashboard.</p>
+      <div id="c-kunden" class="bars"></div>
+    </div>
+    <div class="card">
+      <h2>Kundengruppen im Eingang</h2><p class="desc">Klick filtert das Dashboard</p>
+      <div id="c-kgrp" class="bars"></div>
+    </div>
+    <div class="card">
+      <h2>Vorlauf neuer Aufträge</h2><p class="desc">Zeit vom Eingangstag bis zum geplanten Liefertermin</p>
+      <div id="c-lead" class="bars"></div>
+    </div>
+    <div class="card">
+      <h2>Liefertermin neuer Aufträge</h2><p class="desc">In welche Kalenderwoche der Eingang im Zeitraum geplant ist</p>
+      <div id="c-due" class="bars"></div>
+    </div>
+    <div class="card wide">
+      <div class="card-head">
+        <div><h2 id="t-title">Aufträge</h2><p class="desc" id="t-desc"></p></div>
+        <div class="tabletools">
+          <div class="seg small" id="f-kind" role="group" aria-label="Art der Änderung">
+            <button data-v="neu" aria-pressed="true">Neu</button><button data-v="weg">Entfallen</button><button data-v="chg">Geändert</button>
+          </div>
+          <input class="search" id="q" type="search" placeholder="Kunde, Auftrag, Qualität suchen …" aria-label="Aufträge durchsuchen">
+        </div>
+      </div>
+      <div class="tablewrap"><table id="t-orders"></table></div>
+    </div>
+  </div>
+
+  <ul class="notes">
+    <li>Quelle: die täglichen Mails „MBB_Fertigungsauftragseingang_Forecast“ und „MBW_Forecast_Fertigungsaufträge“ von Model Group BOEP, Blatt „Details nach Tag“. Jeder Tag wird mit dem Vortag desselben Werks verglichen.</li>
+    <li><b>Eingangstag = Maildatum minus 1 Tag.</b> Die Mail um ca. 07:00 zeigt den SAP-Stand vom Vorabend. Deshalb ist der Eingang am Samstag und Sonntag nahezu null und in der Montags-Mail steht nichts Neues.</li>
+    <li><b>Neu</b> heißt: Der Fertigungsauftrag taucht zum ersten Mal im Forecast auf. Das ist in der Regel ein neu angelegter Auftrag. Es kann aber auch ein Auftrag sein, der wieder in den Report aufgenommen wurde, z. B. nach einer Statusänderung in SAP.</li>
+    <li><b>Entfallen</b> heißt: Der Auftrag ist nicht mehr im Forecast. Das sind fast immer produzierte oder gelieferte Aufträge, deren Liefertermin erreicht ist. Stornos lassen sich davon im Export nicht unterscheiden.</li>
+    <li><b>Geändert</b> heißt: Die Stückzahl oder der Liefertermin hat sich gegenüber dem Vortag geändert. Die Veränderung des Bestands ist Eingang − Entfall ± Mengenänderungen.</li>
+    <li>Das Postfach enthält nur die Mails der letzten rund 30 Tage. Ab jetzt baut der tägliche Lauf den Verlauf selbst auf (Cache der letzten 120 Tage).</li>
+  </ul>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+const DATA = /*__AE_DATA__*/null;
+
+const WG_ORDER = ["0135", "0138", "0140", "0145", "0150"];
+const WG_COLOR = { "0135": "var(--s1)", "0138": "var(--s2)", "0140": "var(--s3)", "0145": "var(--s4)", "0150": "var(--s5)" };
+const WG_NAME = Object.assign({}, DATA.wgNames, { "0150": "Stanz+Klebeverpackung" });
+const KIND_NAME = { neu: "Neue Aufträge", weg: "Entfallene Aufträge", chg: "Geänderte Aufträge" };
+
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const nf = new Intl.NumberFormat("de-CH", { maximumFractionDigits: 0 });
+const fmt = n => nf.format(n);
+const fmtSigned = n => (n > 0 ? "+" : n < 0 ? "−" : "±") + fmt(Math.abs(n));
+function fmtShort(n) {
+  const a = Math.abs(n), sg = n < 0 ? "−" : "";
+  if (a >= 1e6) return sg + (a / 1e6).toLocaleString("de-CH", { maximumFractionDigits: 2 }) + " Mio.";
+  if (a >= 1e4) return sg + (a / 1e3).toLocaleString("de-CH", { maximumFractionDigits: 0 }) + " Tsd.";
+  return sg + fmt(a);
+}
+const unitLbl = () => ({ m2: "m²", st: "Stk.", n: "Aufträge" })[state.unit];
+const val = r => state.unit === "n" ? 1 : r[state.unit];
+
+// --- Datum ---
+const D = s => new Date(Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)));
+const iso = d => d.toISOString().slice(0, 10);
+const addDays = (s, n) => { const d = D(s); d.setUTCDate(d.getUTCDate() + n); return iso(d); };
+const diffDays = (a, b) => Math.round((D(a) - D(b)) / 864e5);
+const WD = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+const dayLbl = s => `${WD[D(s).getUTCDay()]} ${s.slice(8, 10)}.${s.slice(5, 7)}.`;
+const dateCH = s => s ? `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}` : "–";
+function isoWeek(s) {
+  const d = D(s), day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day);
+  const y = d.getUTCFullYear();
+  return `${y}-W${String(Math.ceil(((d - Date.UTC(y, 0, 1)) / 864e5 + 1) / 7)).padStart(2, "0")}`;
+}
+const kwLabel = k => `KW ${+k.slice(6)}`;
+
+// --- Ereignisse aufbauen: Eingangstag = Maildatum - 1 ---
+const EV = [];
+const DAYS = new Set();
+const BESTAND = {};
+for (const [plant, p] of Object.entries(DATA.plants)) {
+  const ds = p.days || [];
+  if (ds.length) BESTAND[plant] = ds[ds.length - 1].bestand;
+  for (const day of ds) {
+    if (!day.prev) continue;
+    const t = addDays(day.date, -1);
+    DAYS.add(t);
+    for (const r of day.neu || []) EV.push({ ...r, kind: "neu", plant, t, lead: diffDays(r.d, t) });
+    for (const r of day.weg || []) EV.push({ ...r, kind: "weg", plant, t });
+    for (const r of day.chg || []) EV.push({ ...r, kind: "chg", plant, t, dst: r.st - r.st0, dm2: Math.round((r.m2 - r.m20) * 10) / 10 });
+  }
+}
+const ALL_DAYS = [...DAYS].sort();
+const LAST = ALL_DAYS[ALL_DAYS.length - 1];
+const WGS = WG_ORDER.filter(w => EV.some(r => r.wg === w)).concat([...new Set(EV.map(r => r.wg))].filter(w => !WG_ORDER.includes(w)));
+
+const state = { plant: "all", unit: "m2", period: 30, gran: "day", wg: new Set(WGS), focus: null, sel: null, kind: "neu", q: "", sort: { key: "t", dir: -1 } };
+
+function periodDays() {
+  return state.period ? ALL_DAYS.filter(d => diffDays(LAST, d) < state.period) : ALL_DAYS;
+}
+function baseEv() {
+  const first = periodDays()[0];
+  return EV.filter(r => r.t >= first && (state.plant === "all" || r.plant === state.plant) && state.wg.has(r.wg) && focusOk(r));
+}
+function focusOk(r) {
+  const f = state.focus;
+  return !f || (f.type === "kunde" ? r.kunde === f.v : r.kgrp === f.v);
+}
+const bucketOf = t => state.gran === "week" ? isoWeek(t) : t;
+const bucketLbl = b => state.gran === "week" ? `${kwLabel(b)} ${b.slice(0, 4)}` : dayLbl(b);
+// Änderungswert je Einheit (für "Aufträge" zählen Änderungen nicht)
+const chgVal = r => state.unit === "n" ? 0 : state.unit === "st" ? r.dst : r.dm2;
+
+// --- Tooltip ---
+const tip = document.getElementById("tip");
+function showTip(html, ev) {
+  tip.innerHTML = html; tip.style.opacity = 1;
+  const r = tip.getBoundingClientRect();
+  let x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14;
+  if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - 14;
+  tip.style.left = Math.max(8, x) + "px"; tip.style.top = Math.max(8, y) + "px";
+}
+const hideTip = () => { tip.style.opacity = 0; };
+
+function niceStep(max) {
+  const mag = Math.pow(10, Math.floor(Math.log10(Math.max(1, max))));
+  return [1, 2, 2.5, 5, 10].map(f => f * mag).find(s => max / s <= 4) || mag * 10;
+}
+
+// --- Eingang/Entfall: Säulen nach oben (gestapelt nach WG) und unten ---
+function renderFlow(ev) {
+  const el = document.getElementById("c-flow");
+  const cats = [...new Set(periodDays().map(bucketOf))].sort();
+  const idx = Object.fromEntries(cats.map((c, i) => [c, i]));
+  const series = WGS.filter(w => state.wg.has(w)).map(w => ({ key: w, label: WG_NAME[w] || w, color: WG_COLOR[w] }));
+  const P = cats.map(() => ({})), N = cats.map(() => 0), C = cats.map(() => 0), cnt = cats.map(() => ({ neu: 0, weg: 0, chg: 0 }));
+  ev.forEach(r => {
+    const i = idx[bucketOf(r.t)]; if (i == null) return;
+    cnt[i][r.kind]++;
+    if (r.kind === "neu") P[i][r.wg] = (P[i][r.wg] || 0) + val(r);
+    else if (r.kind === "weg") N[i] += val(r);
+    else C[i] += chgVal(r);
+  });
+  const posT = P.map(o => Object.values(o).reduce((a, b) => a + b, 0));
+  document.getElementById("lg-flow").innerHTML = series.map(s => `<span style="--c:${s.color}">${esc(s.label)}</span>`).join("")
+    + `<span style="--c:var(--out)">Entfallen</span>`;
+
+  const W = Math.max(320, el.clientWidth), H = 320, m = { t: 12, r: 8, b: 26, l: 60 };
+  const iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const maxP = Math.max(1, ...posT), maxN = Math.max(1, ...N);
+  const step = niceStep(Math.max(maxP, maxN));
+  const top = Math.ceil(maxP / step) * step, bot = Math.ceil(maxN / step) * step;
+  const y = v => m.t + (top - v) / (top + bot) * ih;
+  const bw = iw / cats.length, gap = Math.min(10, bw * 0.25), w = bw - gap;
+  let s = "";
+  for (let v = -bot; v <= top + 1e-9; v += step)
+    s += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(${v ? "--grid" : "--axis"})"/><text x="${m.l - 6}" y="${y(v) + 4}" text-anchor="end">${fmtShort(Math.abs(v))}</text>`;
+  const every = Math.ceil(cats.length / Math.max(2, Math.floor(iw / 56)));
+  const r4 = h => Math.min(4, h, w / 2);
+  cats.forEach((c, i) => {
+    const x = m.l + i * bw + gap / 2;
+    const dim = state.sel && state.sel !== c ? ' opacity="0.35"' : "";
+    let acc = 0;
+    const segs = series.map(se => ({ se, v: P[i][se.key] || 0 })).filter(p => p.v > 0);
+    segs.forEach((p, j) => {
+      const y1 = y(acc), y0 = y(acc + p.v);
+      const h = Math.max(0, y1 - y0 - (j < segs.length - 1 ? 2 : 0));
+      const r = r4(h);
+      s += j === segs.length - 1 && h > 0
+        ? `<path d="M${x},${y1}V${y0 + r}q0,-${r} ${r},-${r}h${w - 2 * r}q${r},0 ${r},${r}V${y1}Z" fill="${p.se.color}"${dim}/>`
+        : `<rect x="${x}" y="${y1 - h}" width="${w}" height="${h}" fill="${p.se.color}"${dim}/>`;
+      acc += p.v;
+    });
+    if (N[i] > 0) {
+      const y0 = y(0) + 1, h = Math.max(0, y(-N[i]) - y0), r = r4(h);
+      s += `<path d="M${x},${y0}V${y0 + h - r}q0,${r} ${r},${r}h${w - 2 * r}q${r},0 ${r},-${r}V${y0}Z" fill="var(--out)"${dim}/>`;
+    }
+    if (i % every === 0) s += `<text x="${x + w / 2}" y="${H - 6}" text-anchor="middle">${state.gran === "week" ? kwLabel(c) : dayLbl(c)}</text>`;
+    s += `<rect class="hit" x="${m.l + i * bw}" y="${m.t}" width="${bw}" height="${ih}" fill="transparent" data-i="${i}"/>`;
+  });
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Eingang und Entfall je ${state.gran === "week" ? "Woche" : "Tag"}">${s}</svg>`;
+  el.querySelectorAll(".hit").forEach(rc => {
+    const i = +rc.dataset.i, c = cats[i];
+    rc.addEventListener("pointermove", e => {
+      const lines = series.slice().reverse().filter(se => P[i][se.key]).map(se =>
+        `<div class="row"><span><span class="sw" style="background:${se.color}"></span>${esc(se.label)}</span><span>${fmt(P[i][se.key])}</span></div>`).join("");
+      const net = posT[i] - N[i] + C[i];
+      showTip(`<b>${bucketLbl(c)}</b>${lines}
+        <div class="row tot"><span>Eingang (${cnt[i].neu} Auftr.)</span><b>${fmt(posT[i])}</b></div>
+        <div class="row"><span><span class="sw" style="background:var(--out)"></span>Entfallen (${cnt[i].weg} Auftr.)</span><span>−${fmt(N[i])}</span></div>
+        ${state.unit !== "n" ? `<div class="row"><span>Mengenänderungen (${cnt[i].chg})</span><span>${fmtSigned(C[i])}</span></div>` : ""}
+        <div class="row tot"><span>Veränderung Bestand</span><b>${fmtSigned(net)} ${unitLbl()}</b></div>
+        <div class="hint">${state.sel === c ? "Klick hebt die Auswahl auf" : "Klick zeigt die Aufträge in der Tabelle"}</div>`, e);
+    });
+    rc.addEventListener("pointerleave", hideTip);
+    rc.addEventListener("click", () => { state.sel = state.sel === c ? null : c; hideTip(); render(); });
+  });
+}
+
+// --- Balkenlisten ---
+function sumBy(rows, keyFn) {
+  const c = new Map();
+  rows.forEach(r => { const k = keyFn(r); if (k) c.set(k, (c.get(k) || 0) + val(r)); });
+  return [...c.entries()];
+}
+function barList(el, entries, n, type, keepOrder) {
+  if (!keepOrder) entries = entries.slice().sort((a, b) => b[1] - a[1]);
+  const total = entries.reduce((s, e) => s + e[1], 0) || 1;
+  let rows = entries.slice(0, n);
+  const rest = entries.slice(n);
+  if (rest.length) rows = rows.concat([[`Übrige (${rest.length})`, rest.reduce((s, e) => s + e[1], 0), true]]);
+  const max = Math.max(1, ...rows.filter(r => !r[2]).map(r => r[1]));
+  el.innerHTML = rows.map(([name, v, other]) =>
+    `<div class="bar-row${type && !other ? " click" : ""}" data-v="${esc(name)}" data-other="${other ? 1 : ""}" data-tip="<b>${esc(name)}</b><br>${fmt(v)} ${unitLbl()} (${(v / total * 100).toLocaleString("de-CH", { maximumFractionDigits: 1 })} %)">
+      <div class="n" title="${esc(name)}">${esc(name)}</div>
+      <div><div class="bar-fill" style="width:${Math.min(100, v / max * 100)}%;${other ? "background:var(--muted);border-radius:0" : ""}"></div></div>
+      <div class="v">${fmtShort(v)}</div></div>`).join("") || `<div class="sub">Keine neuen Aufträge im Zeitraum</div>`;
+  el.querySelectorAll(".bar-row").forEach(r => {
+    r.addEventListener("pointermove", ev => showTip(r.dataset.tip, ev));
+    r.addEventListener("pointerleave", hideTip);
+    if (type && !r.dataset.other) r.addEventListener("click", () => { state.focus = { type, v: r.dataset.v }; hideTip(); render(); });
+  });
+}
+const LEAD = [[0, 2, "0–2 Tage"], [3, 6, "3–6 Tage"], [7, 13, "1–2 Wochen"], [14, 20, "2–3 Wochen"], [21, 27, "3–4 Wochen"], [28, 55, "4–8 Wochen"], [56, 1e9, "über 8 Wochen"]];
+function renderLead(neu) {
+  const sums = LEAD.map(([a, b, l]) => [l, neu.filter(r => r.lead >= a && r.lead <= b).reduce((s, r) => s + val(r), 0)]);
+  barList(document.getElementById("c-lead"), sums, 99, null, true);
+}
+function renderDue(neu) {
+  const by = new Map();
+  neu.forEach(r => { const k = isoWeek(r.d); by.set(k, (by.get(k) || 0) + val(r)); });
+  const keys = [...by.keys()].sort();
+  const head = keys.slice(0, 8).map(k => [`${kwLabel(k)} ${k.slice(0, 4)}`, by.get(k)]);
+  const later = keys.slice(8);
+  if (later.length) head.push([`später (${later.length} KW)`, later.reduce((s, k) => s + by.get(k), 0)]);
+  barList(document.getElementById("c-due"), head, 99, null, true);
+}
+
+// --- KPIs ---
+function median(a) { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; }
+function renderKpis(ev) {
+  const sum = (k, rows = ev) => rows.filter(r => r.kind === k).reduce((s, r) => s + val(r), 0);
+  const count = (k, rows = ev) => rows.filter(r => r.kind === k).length;
+  const lastEv = ev.filter(r => r.t === LAST);
+  const pd = periodDays();
+  const workdays = pd.filter(d => { const w = D(d).getUTCDay(); return w >= 1 && w <= 5; }).length || 1;
+  const neuSum = sum("neu");
+  const chg = ev.filter(r => r.kind === "chg").reduce((s, r) => s + chgVal(r), 0);
+  const net = neuSum - sum("weg") + chg;
+  const leads = ev.filter(r => r.kind === "neu").map(r => r.lead);
+  const med = median(leads);
+  const plants = state.plant === "all" ? Object.keys(BESTAND) : [state.plant];
+  const bestand = state.unit === "n" ? plants.reduce((s, p) => s + BESTAND[p].n, 0) : plants.reduce((s, p) => s + BESTAND[p][state.unit], 0);
+  const filtered = state.wg.size < WGS.length || state.focus;
+  const k = [
+    [`Eingang ${dayLbl(LAST)}`, fmtShort(sum("neu", lastEv)), `${fmt(count("neu", lastEv))} neue Aufträge`],
+    [`Eingang ${state.period ? state.period + " Tage" : "gesamt"}`, fmtShort(neuSum), `${fmt(count("neu"))} Aufträge seit ${dateCH(pd[0])}`],
+    ["Ø je Arbeitstag", fmtShort(neuSum / workdays), `${workdays} Arbeitstage (Mo–Fr)`],
+    ["Entfallen", fmtShort(sum("weg")), `${fmt(count("weg"))} Aufträge, meist produziert`],
+    ["Veränderung Bestand", fmtSigned(Math.round(net)).replace(/\d[\d’']*/, m => fmtShort(+m.replace(/\D/g, ""))), filtered ? "im aktuellen Filter" : `Bestand jetzt ${fmtShort(bestand)} ${unitLbl()}`, net > 0 ? "pos" : net < 0 ? "neg" : ""],
+    ["Vorlauf (Median)", med == null ? "–" : `${med} Tage`, "vom Eingang bis zum Liefertermin"],
+  ];
+  document.getElementById("kpis").innerHTML = k.map(([l, v, n, cls]) =>
+    `<div class="kpi"><div class="lbl" title="${esc(l)}">${esc(l)}</div><div class="val ${cls || ""}">${v}</div><div class="note">${esc(n)}</div></div>`).join("");
+}
+
+// --- Tabelle ---
+function renderTable(ev) {
+  let rows = ev.filter(r => r.kind === state.kind && (!state.sel || bucketOf(r.t) === state.sel));
+  const q = state.q.trim().toLowerCase();
+  if (q) rows = rows.filter(r => `${r.kunde} ${r.auf} ${r.q} ${r.kgrp}`.toLowerCase().includes(q));
+  const { key, dir } = state.sort;
+  const get = r => key === "wg" ? WG_NAME[r.wg] : r[key];
+  rows = rows.slice().sort((a, b) => { const x = get(a), y = get(b); return (x > y ? 1 : x < y ? -1 : 0) * dir || (a.auf > b.auf ? 1 : -1); });
+  const tLbl = state.kind === "neu" ? "Eingangstag" : state.kind === "weg" ? "Entfallen am" : "Geändert am";
+  const cols = state.kind === "chg"
+    ? [["t", tLbl], ["plant", "Werk"], ["auf", "Auftrag"], ["kunde", "Kunde"], ["wg", "Warengruppe"], ["d0", "Termin alt"], ["d", "Termin neu"], ["st0", "Stück alt", 1], ["st", "Stück neu", 1], ["dm2", "Δ m²", 1]]
+    : [["t", tLbl], ["plant", "Werk"], ["auf", "Auftrag"], ["kunde", "Kunde"], ["kgrp", "Kundengruppe"], ["wg", "Warengruppe"], ["q", "Qualität"], ["d", "Liefertermin"], ["st", "Stück", 1], ["m2", "m²", 1]];
+  const LIMIT = 300;
+  document.getElementById("t-title").textContent = KIND_NAME[state.kind] + (state.sel ? ` · ${bucketLbl(state.sel)}` : "");
+  document.getElementById("t-desc").textContent = (rows.length > LIMIT ? `${fmt(rows.length)} Aufträge, die ersten ${LIMIT} werden angezeigt.` : `${fmt(rows.length)} Aufträge.`)
+    + (state.sel ? " Klick auf denselben Balken hebt die Auswahl auf." : " Klick auf einen Balken im Diagramm zeigt nur diesen Tag.");
+  const swWg = r => `<span class="sw" style="background:${WG_COLOR[r.wg] || "var(--muted)"}"></span>${esc(WG_NAME[r.wg] || r.wg)}`;
+  const cell = (r, k) => {
+    if (k === "t" || k === "d" || k === "d0") return `<td${k === "d" && r.d0 && r.d0 !== r.d ? ' style="font-weight:600"' : ""}>${dateCH(r[k])}</td>`;
+    if (k === "wg") return `<td>${swWg(r)}</td>`;
+    if (k === "dm2") return `<td class="num ${r.dm2 > 0 ? "pos" : r.dm2 < 0 ? "neg" : ""}">${r.dm2 ? fmtSigned(r.dm2) : "–"}</td>`;
+    if (["st", "st0", "m2"].includes(k)) return `<td class="num">${fmt(r[k])}</td>`;
+    return `<td>${esc(r[k])}</td>`;
+  };
+  const t = document.getElementById("t-orders");
+  t.innerHTML = `<thead><tr>${cols.map(([k, l, num]) => `<th data-k="${k}" class="${num ? "num" : ""}">${l}${k === key ? (dir > 0 ? " ▲" : " ▼") : ""}</th>`).join("")}</tr></thead>
+    <tbody>${rows.slice(0, LIMIT).map(r => `<tr>${cols.map(([k]) => cell(r, k)).join("")}</tr>`).join("")}</tbody>`;
+  t.querySelectorAll("th").forEach(th => th.addEventListener("click", () => {
+    const k = th.dataset.k;
+    state.sort = { key: k, dir: state.sort.key === k ? -state.sort.dir : (["st", "st0", "m2", "dm2", "t"].includes(k) ? -1 : 1) };
+    renderTable(baseEv());
+  }));
+}
+
+function renderFocus() {
+  const el = document.getElementById("f-active");
+  const f = state.focus;
+  el.innerHTML = (f ? `<span class="active-filter" data-x="focus">${f.type === "kunde" ? "Kunde" : "Kundengruppe"}: <b>${esc(f.v)}</b><button aria-label="Filter entfernen">✕</button></span>` : "")
+    + (state.sel ? `<span class="active-filter" data-x="sel">${state.gran === "week" ? "Woche" : "Tag"}: <b>${esc(bucketLbl(state.sel))}</b><button aria-label="Auswahl entfernen">✕</button></span>` : "");
+  el.querySelectorAll(".active-filter").forEach(a => a.querySelector("button").addEventListener("click", () => {
+    state[a.dataset.x] = null; render();
+  }));
+}
+
+function render() {
+  // Auswahl verwerfen, wenn sie nach Filterwechsel nicht mehr im Zeitraum liegt
+  if (state.sel && !periodDays().some(d => bucketOf(d) === state.sel)) state.sel = null;
+  const ev = baseEv();
+  const neu = ev.filter(r => r.kind === "neu");
+  renderFocus();
+  renderKpis(ev);
+  renderFlow(ev);
+  barList(document.getElementById("c-kunden"), sumBy(neu, r => r.kunde), 12, "kunde");
+  barList(document.getElementById("c-kgrp"), sumBy(neu, r => r.kgrp), 10, "kgrp");
+  renderLead(neu);
+  renderDue(neu);
+  renderTable(ev);
+}
+
+function bindSeg(id, prop, cast = v => v, after) {
+  document.querySelectorAll(`#${id} button`).forEach(b => b.addEventListener("click", () => {
+    document.querySelectorAll(`#${id} button`).forEach(x => x.setAttribute("aria-pressed", x === b));
+    state[prop] = cast(b.dataset.v);
+    if (after) after();
+    render();
+  }));
+}
+bindSeg("f-plant", "plant");
+bindSeg("f-unit", "unit");
+bindSeg("f-period", "period", Number);
+bindSeg("f-gran", "gran", v => v, () => { state.sel = null; });
+bindSeg("f-kind", "kind", v => v, () => { state.sort = { key: "t", dir: -1 }; });
+
+const chips = document.getElementById("f-wg");
+chips.innerHTML = WGS.map(w => `<button class="chip" style="--c:${WG_COLOR[w] || "var(--muted)"}" data-wg="${w}" aria-pressed="true">${esc(WG_NAME[w] || w)}</button>`).join("");
+chips.querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => {
+  const w = c.dataset.wg;
+  if (state.wg.has(w) && state.wg.size === 1) return;
+  state.wg.has(w) ? state.wg.delete(w) : state.wg.add(w);
+  c.setAttribute("aria-pressed", state.wg.has(w));
+  render();
+}));
+
+let qt; document.getElementById("q").addEventListener("input", e => {
+  clearTimeout(qt); qt = setTimeout(() => { state.q = e.target.value; renderTable(baseEv()); }, 150);
+});
+
+document.getElementById("meta").textContent = Object.entries(DATA.plants).map(([p, v]) => {
+  const l = v.days[v.days.length - 1];
+  return l ? `${p}: Mail vom ${dateCH(l.received.slice(0, 10))}, ${l.received.slice(11)}` : `${p}: keine Daten`;
+}).join(" · ") + ` · Verlauf seit ${dateCH(ALL_DAYS[0])}`;
+let rw; addEventListener("resize", () => { clearTimeout(rw); rw = setTimeout(render, 150); });
+render();
+</script>
+</body>
+</html>
