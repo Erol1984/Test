@@ -1,1 +1,17 @@
 .claude/settings.local.json
+ue-lieferungen-data.json
+ue-lieferungen-dashboard-standalone.html
+mail-stats-data.json
+mail-stats-dashboard-standalone.html
+forecast-data.json
+forecast-dashboard-standalone.html
+tools/extract-forecast.log
+scripts/*.log
+stillstaende-data.json
+stillstaende-neu.json
+stillstaende-stand.json
+tools/extract-stillstaende.log
+auftragseingang-data.json
+auftragseingang-dashboard-standalone.html
+auftragseingang-cache/
+tools/extract-auftragseingang.log

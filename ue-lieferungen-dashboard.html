@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>U/Ü Lieferungen – Dashboard</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f9f9f7;
+    --card: #fcfcfb;
+    --text: #0b0b0b;
+    --text-2: #52514e;
+    --muted: #898781;
+    --border: rgba(11,11,11,0.10);
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --accent: #2a78d6;
+    --accent-hover: #1c5cab;
+    /* diverging pair: Ueberlieferung (blue, positive) <-> Unterlieferung (red, negative) */
+    --pos: #2a78d6;
+    --neg: #e34948;
+    --good: #0ca30c;
+    --shadow: 0 10px 30px -14px rgba(11,11,11,0.20);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #0d0d0d;
+      --card: #1a1a19;
+      --text: #ffffff;
+      --text-2: #c3c2b7;
+      --muted: #898781;
+      --border: rgba(255,255,255,0.10);
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --accent: #3987e5;
+      --accent-hover: #5a9eec;
+      --pos: #3987e5;
+      --neg: #e66767;
+      --good: #0ca30c;
+      --shadow: 0 10px 30px -14px rgba(0,0,0,0.6);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px 16px 64px;
+  }
+  main { max-width: 1240px; margin: 0 auto; }
+
+  header.top { margin-bottom: 20px; }
+  header.top h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  header.top p { margin: 0; color: var(--text-2); font-size: 0.9rem; }
+  #load-status { font-size: 0.85rem; color: var(--muted); margin-top: 6px; }
+
+  /* Period nav (drives the KPI row) */
+  .period-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-size: 0.85rem;
+    color: var(--text-2);
+  }
+  .period-nav .period-label { font-weight: 700; color: var(--text); min-width: 200px; }
+  .period-nav button {
+    border: 1px solid var(--border); background: var(--card); color: var(--text);
+    width: 28px; height: 28px; border-radius: 7px; cursor: pointer; font-size: 0.9rem;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .period-nav button:disabled { opacity: 0.3; cursor: default; }
+  .period-nav button:hover:not(:disabled) { border-color: var(--muted); }
+  .period-nav .btn-latest {
+    width: auto; padding: 0 10px; font-size: 0.78rem; font-weight: 600; color: var(--text-2);
+  }
+
+  /* KPI row */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .stat-tile {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    box-shadow: var(--shadow);
+  }
+  .stat-tile .v { font-size: 1.4rem; font-weight: 600; line-height: 1.15; }
+  .stat-tile .v.neg { color: var(--neg); }
+  .stat-tile .v.pos { color: var(--pos); }
+  .stat-tile .l { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 4px; }
+
+  /* Filter row */
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+  }
+  .filters .field { display: flex; flex-direction: column; gap: 5px; min-width: 150px; }
+  .filters .field.grow { flex: 1; min-width: 200px; }
+  .filters .field.full { flex: 1 1 100%; min-width: 100%; }
+  .machine-toggle { display: flex; flex-wrap: wrap; gap: 6px; }
+  .machine-toggle button {
+    border: 1px solid var(--border); background: var(--bg); color: var(--text-2);
+    padding: 6px 11px; border-radius: 999px; font-size: 0.78rem; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+  }
+  .machine-toggle button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .machine-toggle button:hover:not(.active) { color: var(--text); border-color: var(--muted); }
+  .filters label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+  .filters input, .filters select {
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.88rem;
+  }
+  .gran-toggle { display: flex; gap: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
+  .gran-toggle button {
+    border: none; background: transparent; color: var(--text-2);
+    padding: 6px 10px; border-radius: 6px; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  }
+  .gran-toggle button.active { background: var(--accent); color: #fff; }
+  .btn-reset {
+    border: 1px solid var(--border); background: transparent; color: var(--text-2);
+    padding: 8px 14px; border-radius: 8px; font-size: 0.85rem; cursor: pointer; font-weight: 600;
+  }
+  .btn-reset:hover { color: var(--text); border-color: var(--muted); }
+
+  /* Charts */
+  .chart-row { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 20px; align-items: start; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    box-shadow: var(--shadow);
+  }
+  .card h2 { font-size: 0.8rem; margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-2); font-weight: 700; }
+  .card .sub { font-size: 0.78rem; color: var(--muted); margin: 0 0 14px; }
+  .chart-wrap { width: 100%; overflow-x: auto; }
+  svg.chart { display: block; width: 100%; height: auto; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px 20px; margin-top: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text-2); }
+  .legend-swatch { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+  .seg { transition: opacity .12s; cursor: default; }
+  .seg:hover { opacity: 0.82; }
+  .chart-tip {
+    position: fixed;
+    pointer-events: none;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 0.8rem;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    transition: opacity .1s;
+    z-index: 20;
+    white-space: nowrap;
+  }
+  .chart-tip .tt-val { font-weight: 700; color: var(--text); }
+  .chart-tip .tt-key { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
+  .share-bar-wrap { margin-top: 6px; }
+  .share-bar { display: flex; width: 100%; height: 28px; border-radius: 6px; overflow: hidden; }
+  .share-seg { display: flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 700; color: #fff; white-space: nowrap; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+  th, td { text-align: left; padding: 8px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; cursor: pointer; user-select: none; }
+  th:hover { color: var(--text); }
+  th .arrow { opacity: 0.5; margin-left: 3px; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.typ .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; color: #fff; }
+  .pill.neg { background: var(--neg); }
+  .pill.pos { background: var(--pos); }
+  .table-scroll { width: 100%; overflow-x: auto; }
+  .table-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; font-size: 0.82rem; color: var(--text-2); }
+  .table-footer .pager { display: flex; gap: 6px; align-items: center; }
+  .table-footer button {
+    border: 1px solid var(--border); background: transparent; color: var(--text);
+    padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 0.82rem;
+  }
+  .table-footer button:disabled { opacity: 0.35; cursor: default; }
+  .empty { color: var(--muted); font-size: 0.9rem; padding: 24px 0; text-align: center; }
+
+  @media (max-width: 900px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .chart-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <h1>Unter- / Überlieferungen</h1>
+    <p>Auswertung aus dem Outlook-Ordner „U/Ü Lieferungen" (SCM) – tägliche Snapshot-Reports, dedupliziert je Kundenauftrag/Position.</p>
+    <div id="load-status">Lade Daten…</div>
+  </header>
+
+  <div class="period-nav" id="period-nav">
+    <button id="period-prev" title="Vorheriger Zeitraum">‹</button>
+    <span class="period-label" id="period-label">–</span>
+    <button id="period-next" title="Nächster Zeitraum">›</button>
+    <button class="btn-latest" id="period-latest">Aktuell</button>
+  </div>
+  <section class="kpi-row" id="kpi-row"></section>
+
+  <section class="filters">
+    <div class="field grow">
+      <label for="f-kunde">Kunde</label>
+      <input type="text" id="f-kunde" list="kunde-list" placeholder="Alle Kunden">
+      <datalist id="kunde-list"></datalist>
+    </div>
+    <div class="field">
+      <label for="f-material">Materialnummer</label>
+      <input type="text" id="f-material" placeholder="Alle">
+    </div>
+    <div class="field">
+      <label for="f-von">Von</label>
+      <input type="date" id="f-von">
+    </div>
+    <div class="field">
+      <label for="f-bis">Bis</label>
+      <input type="date" id="f-bis">
+    </div>
+    <div class="field">
+      <label>Zeitraum-Ebene</label>
+      <div class="gran-toggle" id="gran-toggle">
+        <button data-g="tag">Tag</button>
+        <button data-g="woche">Woche</button>
+        <button data-g="monat" class="active">Monat</button>
+        <button data-g="jahr">Jahr</button>
+      </div>
+    </div>
+    <button class="btn-reset" id="btn-reset">Filter zurücksetzen</button>
+    <div class="field full">
+      <label>Maschine</label>
+      <div class="machine-toggle" id="machine-toggle"></div>
+    </div>
+  </section>
+
+  <section class="chart-row">
+    <div class="card">
+      <h2>Trend: Unter- vs. Überlieferungen</h2>
+      <p class="sub">Anzahl Meldungen je Zeitraum, oberhalb/unterhalb der Nulllinie</p>
+      <div class="chart-wrap"><svg class="chart" id="trend-chart" viewBox="0 0 900 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Trend Unter- und Ueberlieferungen"></svg></div>
+      <div class="legend" id="trend-legend"></div>
+    </div>
+    <div class="card">
+      <h2>Anteil</h2>
+      <p class="sub">Unterlieferungen vs. Überlieferungen (gefilterte Auswahl)</p>
+      <div class="share-bar-wrap">
+        <div class="share-bar" id="share-bar"></div>
+      </div>
+      <div class="legend" id="share-legend"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Datensätze</h2>
+    <p class="sub" id="table-sub"></p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr id="table-head"></tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+      <div class="empty" id="table-empty" style="display:none;">Keine Datensätze für die aktuelle Filterauswahl.</div>
+    </div>
+    <div class="table-footer">
+      <div id="table-count"></div>
+      <div class="pager">
+        <button id="pg-prev">‹ Zurück</button>
+        <span id="pg-info"></span>
+        <button id="pg-next">Weiter ›</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="chart-tip" id="chart-tip"></div>
+
+<script>
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const PAGE_SIZE = 50;
+
+  const COLUMNS = [
+    { key: 'kunde', label: 'Kunde' },
+    { key: 'material', label: 'Material' },
+    { key: 'datum', label: 'Datum' },
+    { key: 'maschine', label: 'Maschine' },
+    { key: 'ist', label: 'Menge Ist', num: true },
+    { key: 'soll', label: 'Menge Soll', num: true },
+    { key: 'abweichung', label: 'Abweichung', num: true },
+    { key: 'abweichungPct', label: 'Abw. %', num: true },
+    { key: 'typ', label: 'Typ' },
+  ];
+
+  const MONTH_NAMES = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+
+  // Keine echten Produktionsmaschinen (Handarbeit/manuell) bzw. auf Wunsch ausgeblendet -
+  // werden komplett aus dem Dashboard entfernt (Kennzahlen, Charts, Filter, Tabelle).
+  const EXCLUDED_MACHINES = ['3 Teil Display Klebemasch.', 'Doppelkopfheftmaschine', 'Tablarklebemaschine', 'Tiegel 1', 'Travail manuel'];
+  function isExcludedMachine(m) {
+    return EXCLUDED_MACHINES.includes(m) || (!!m && m.startsWith('Handarbeit Sonderfert'));
+  }
+
+  let RAW = [];
+  let sortKey = 'datum';
+  let sortDir = 'desc';
+  let page = 1;
+  let currentPeriods = [];   // Zeitraum-Schluessel, die fuer die aktuelle Filterauswahl existieren
+
+  const state = { kunde: '', material: '', maschine: '', von: '', bis: '', gran: 'monat', periodKey: null };
+
+  function fmtDate(iso) {
+    if (!iso) return '–';
+    const [y, m, d] = iso.split('-');
+    return `${d}.${m}.${y}`;
+  }
+  function fmtNum(v, digits = 0) {
+    if (v === null || v === undefined || isNaN(v)) return '–';
+    return Number(v).toLocaleString('de-CH', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  }
+  function fmtCompact(v) {
+    if (v === null || v === undefined) return '–';
+    const abs = Math.abs(v);
+    if (abs >= 1000000) return (v / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (abs >= 1000) return (v / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+    return fmtNum(v);
+  }
+  function median(arr) {
+    if (!arr.length) return null;
+    const s = [...arr].sort((a, b) => a - b);
+    const mid = Math.floor(s.length / 2);
+    return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+  }
+  function niceCeil(v) {
+    if (v <= 0) return 1;
+    const mag = Math.pow(10, Math.floor(Math.log10(v)));
+    const n = v / mag;
+    const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+    return step * mag;
+  }
+  function isoMonday(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    const day = (d.getDay() + 6) % 7; // Mon=0
+    d.setDate(d.getDate() - day);
+    return d.toISOString().slice(0, 10);
+  }
+  function periodKey(dateStr, gran) {
+    if (gran === 'tag') return dateStr;
+    if (gran === 'woche') return isoMonday(dateStr);
+    if (gran === 'monat') return dateStr.slice(0, 7);
+    return dateStr.slice(0, 4);
+  }
+  function periodLabel(key, gran) {
+    if (gran === 'tag') return fmtDate(key);
+    if (gran === 'woche') { const [, m, d] = key.split('-'); return 'KW ' + d + '.' + m + '.'; }
+    if (gran === 'monat') { const [y, m] = key.split('-'); return m + '/' + y.slice(2); }
+    return key;
+  }
+  function periodLabelFull(key, gran) {
+    if (!key) return 'Gesamter Zeitraum';
+    if (gran === 'tag') return fmtDate(key);
+    if (gran === 'woche') {
+      const start = new Date(key + 'T00:00:00');
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      const short = (d) => `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.`;
+      return `Woche vom ${short(start)}–${short(end)}${end.getFullYear()}`;
+    }
+    if (gran === 'monat') { const [y, m] = key.split('-'); return MONTH_NAMES[Number(m) - 1] + ' ' + y; }
+    return key; // jahr
+  }
+
+  /* ---------------- Filtering ---------------- */
+  function applyFilters() {
+    const kunde = state.kunde.trim().toLowerCase();
+    const material = state.material.trim().toLowerCase();
+    return RAW.filter((r) => {
+      if (kunde && !(r.kunde || '').toLowerCase().includes(kunde)) return false;
+      if (material && !(r.material || '').toLowerCase().includes(material)) return false;
+      if (state.maschine && r.maschine !== state.maschine) return false;
+      if (state.von && (!r.datum || r.datum < state.von)) return false;
+      if (state.bis && (!r.datum || r.datum > state.bis)) return false;
+      return true;
+    });
+  }
+
+  /* ---------------- Zeitraum-Auswahl fuer die KPI-Kacheln ---------------- */
+  function computeKpiPeriod(filtered) {
+    const dated = filtered.filter((r) => r.datum);
+    const keys = [...new Set(dated.map((r) => periodKey(r.datum, state.gran)))].sort();
+    currentPeriods = keys;
+
+    if (keys.length === 0) {
+      state.periodKey = null;
+      return filtered; // keine datierten Zeilen -> KPIs ueber die gesamte Filterauswahl
+    }
+    if (state.periodKey === null || !keys.includes(state.periodKey)) {
+      state.periodKey = keys[keys.length - 1]; // neuester verfuegbarer Zeitraum
+    }
+    return dated.filter((r) => periodKey(r.datum, state.gran) === state.periodKey);
+  }
+
+  function renderPeriodNav() {
+    document.getElementById('period-label').textContent = periodLabelFull(state.periodKey, state.gran);
+    const idx = currentPeriods.indexOf(state.periodKey);
+    document.getElementById('period-prev').disabled = idx <= 0;
+    document.getElementById('period-next').disabled = idx === -1 || idx >= currentPeriods.length - 1;
+  }
+
+  /* ---------------- KPIs ---------------- */
+  function renderKPIs(rows) {
+    const n = rows.length;
+    const unter = rows.filter((r) => r.typ === 'Unterlieferung');
+    const ueber = rows.filter((r) => r.typ === 'Ueberlieferung');
+    const sumAbw = rows.reduce((a, r) => a + (r.abweichung || 0), 0);
+    const medPct = median(rows.map((r) => r.abweichungPct).filter((v) => v !== null));
+
+    const tiles = [
+      ['Datensätze', fmtNum(n), ''],
+      ['Unterlieferungen', fmtNum(unter.length), 'neg'],
+      ['Überlieferungen', fmtNum(ueber.length), 'pos'],
+      ['Menge – Abweichung (Summe)', (sumAbw > 0 ? '+' : '') + fmtCompact(sumAbw), sumAbw < 0 ? 'neg' : sumAbw > 0 ? 'pos' : ''],
+      ['Median Abweichung %', medPct === null ? '–' : (medPct > 0 ? '+' : '') + fmtNum(medPct, 1) + '%', ''],
+    ];
+    document.getElementById('kpi-row').innerHTML = tiles.map(([l, v, cls]) =>
+      `<div class="stat-tile"><div class="v ${cls}">${v}</div><div class="l">${l}</div></div>`
+    ).join('');
+  }
+
+  /* ---------------- Trend chart (diverging bar) ---------------- */
+  const tip = () => document.getElementById('chart-tip');
+  function showTip(evt, rowsHtml) {
+    const t = tip();
+    t.innerHTML = rowsHtml;
+    t.style.opacity = '1';
+    t.style.left = (evt.clientX + 14) + 'px';
+    t.style.top = (evt.clientY - 10) + 'px';
+  }
+  function hideTip() { tip().style.opacity = '0'; }
+
+  function renderTrendChart(rows) {
+    const svg = document.getElementById('trend-chart');
+    const legend = document.getElementById('trend-legend');
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+    const dated = rows.filter((r) => r.datum);
+    const byPeriod = new Map();
+    for (const r of dated) {
+      const key = periodKey(r.datum, state.gran);
+      if (!byPeriod.has(key)) byPeriod.set(key, { unter: 0, ueber: 0 });
+      const bucket = byPeriod.get(key);
+      if (r.typ === 'Unterlieferung') bucket.unter++;
+      else if (r.typ === 'Ueberlieferung') bucket.ueber++;
+    }
+    const periods = [...byPeriod.keys()].sort();
+
+    legend.innerHTML = [
+      ['Überlieferungen', 'var(--pos)'],
+      ['Unterlieferungen', 'var(--neg)'],
+    ].map(([l, c]) => `<span class="legend-item"><span class="legend-swatch" style="background:${c}"></span>${l}</span>`).join('');
+
+    const W = 900, H = 300;
+    const m = { top: 16, right: 16, bottom: 34, left: 40 };
+    const plotW = W - m.left - m.right;
+    const plotH = H - m.top - m.bottom;
+
+    if (periods.length === 0) {
+      const t = document.createElementNS(SVGNS, 'text');
+      t.setAttribute('x', W / 2); t.setAttribute('y', H / 2);
+      t.setAttribute('text-anchor', 'middle'); t.setAttribute('fill', 'var(--muted)'); t.setAttribute('font-size', '13');
+      t.textContent = 'Keine Daten für die aktuelle Filterauswahl.';
+      svg.appendChild(t);
+      return;
+    }
+
+    const maxVal = Math.max(...periods.map((p) => Math.max(byPeriod.get(p).ueber, byPeriod.get(p).unter)), 1);
+    const niceMax = niceCeil(maxVal);
+    const midY = m.top + plotH / 2;
+    const y = (v) => midY - (v / niceMax) * (plotH / 2);
+
+    // Gridlines: 0 (bold baseline), +-niceMax/2, +-niceMax
+    [-niceMax, -niceMax / 2, 0, niceMax / 2, niceMax].forEach((val) => {
+      const yy = y(val);
+      const line = document.createElementNS(SVGNS, 'line');
+      line.setAttribute('x1', m.left); line.setAttribute('x2', m.left + plotW);
+      line.setAttribute('y1', yy); line.setAttribute('y2', yy);
+      line.setAttribute('stroke', val === 0 ? 'var(--baseline)' : 'var(--grid)');
+      line.setAttribute('stroke-width', '1');
+      svg.appendChild(line);
+
+      const lbl = document.createElementNS(SVGNS, 'text');
+      lbl.setAttribute('x', m.left - 8); lbl.setAttribute('y', yy + 4);
+      lbl.setAttribute('text-anchor', 'end'); lbl.setAttribute('fill', 'var(--muted)'); lbl.setAttribute('font-size', '11');
+      lbl.textContent = fmtNum(Math.abs(val));
+      svg.appendChild(lbl);
+    });
+
+    const bandW = plotW / periods.length;
+    const barW = Math.min(26, bandW * 0.6);
+    const showXLabels = periods.length <= 40;
+
+    periods.forEach((p, i) => {
+      const bucket = byPeriod.get(p);
+      const cx = m.left + bandW * i + bandW / 2;
+      const x = cx - barW / 2;
+
+      // Ueberlieferung: above baseline
+      if (bucket.ueber > 0) {
+        const top = y(bucket.ueber);
+        const bottom = y(0) - 1;
+        const rect = document.createElementNS(SVGNS, 'rect');
+        rect.setAttribute('class', 'seg');
+        rect.setAttribute('x', x); rect.setAttribute('y', top);
+        rect.setAttribute('width', barW); rect.setAttribute('height', Math.max(1, bottom - top));
+        rect.setAttribute('rx', '3'); rect.setAttribute('fill', 'var(--pos)');
+        rect.addEventListener('pointermove', (evt) => showTip(evt,
+          `<span class="tt-key" style="background:var(--pos)"></span>${periodLabel(p, state.gran)}: <span class="tt-val">${bucket.ueber}</span> Überlieferung(en)`));
+        rect.addEventListener('pointerleave', hideTip);
+        svg.appendChild(rect);
+      }
+      // Unterlieferung: below baseline
+      if (bucket.unter > 0) {
+        const top = y(0) + 1;
+        const bottom = y(-bucket.unter);
+        const rect = document.createElementNS(SVGNS, 'rect');
+        rect.setAttribute('class', 'seg');
+        rect.setAttribute('x', x); rect.setAttribute('y', top);
+        rect.setAttribute('width', barW); rect.setAttribute('height', Math.max(1, bottom - top));
+        rect.setAttribute('rx', '3'); rect.setAttribute('fill', 'var(--neg)');
+        rect.addEventListener('pointermove', (evt) => showTip(evt,
+          `<span class="tt-key" style="background:var(--neg)"></span>${periodLabel(p, state.gran)}: <span class="tt-val">${bucket.unter}</span> Unterlieferung(en)`));
+        rect.addEventListener('pointerleave', hideTip);
+        svg.appendChild(rect);
+      }
+
+      if (showXLabels && (periods.length <= 14 || i % Math.ceil(periods.length / 14) === 0)) {
+        const xlbl = document.createElementNS(SVGNS, 'text');
+        xlbl.setAttribute('x', cx); xlbl.setAttribute('y', H - 14);
+        xlbl.setAttribute('text-anchor', 'middle'); xlbl.setAttribute('fill', 'var(--muted)'); xlbl.setAttribute('font-size', '10');
+        xlbl.textContent = periodLabel(p, state.gran);
+        svg.appendChild(xlbl);
+      }
+    });
+  }
+
+  /* ---------------- Share bar ---------------- */
+  function renderShareChart(rows) {
+    const bar = document.getElementById('share-bar');
+    const legend = document.getElementById('share-legend');
+    const unter = rows.filter((r) => r.typ === 'Unterlieferung').length;
+    const ueber = rows.filter((r) => r.typ === 'Ueberlieferung').length;
+    const total = unter + ueber;
+
+    bar.innerHTML = '';
+    if (total === 0) {
+      legend.innerHTML = '<span class="legend-item">Keine Daten für die aktuelle Filterauswahl.</span>';
+      return;
+    }
+    const pctUnter = (unter / total) * 100;
+    const pctUeber = (ueber / total) * 100;
+
+    const segUnter = document.createElement('div');
+    segUnter.className = 'share-seg';
+    segUnter.style.width = pctUnter + '%';
+    segUnter.style.background = 'var(--neg)';
+    segUnter.textContent = pctUnter >= 8 ? fmtNum(pctUnter, 1) + '%' : '';
+    segUnter.title = `Unterlieferungen: ${unter} (${fmtNum(pctUnter, 1)}%)`;
+
+    const segUeber = document.createElement('div');
+    segUeber.className = 'share-seg';
+    segUeber.style.width = pctUeber + '%';
+    segUeber.style.background = 'var(--pos)';
+    segUeber.textContent = pctUeber >= 8 ? fmtNum(pctUeber, 1) + '%' : '';
+    segUeber.title = `Überlieferungen: ${ueber} (${fmtNum(pctUeber, 1)}%)`;
+
+    bar.appendChild(segUnter);
+    bar.appendChild(segUeber);
+
+    legend.innerHTML = `
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--neg)"></span>Unterlieferungen: ${fmtNum(unter)} (${fmtNum(pctUnter, 1)}%)</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--pos)"></span>Überlieferungen: ${fmtNum(ueber)} (${fmtNum(pctUeber, 1)}%)</span>
+    `;
+  }
+
+  /* ---------------- Table ---------------- */
+  function renderTableHead() {
+    const tr = document.getElementById('table-head');
+    tr.innerHTML = COLUMNS.map((c) => {
+      const arrow = sortKey === c.key ? (sortDir === 'asc' ? '▲' : '▼') : '';
+      return `<th data-key="${c.key}">${c.label}<span class="arrow">${arrow}</span></th>`;
+    }).join('');
+    tr.querySelectorAll('th').forEach((th) => {
+      th.addEventListener('click', () => {
+        const key = th.dataset.key;
+        if (sortKey === key) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+        else { sortKey = key; sortDir = 'asc'; }
+        page = 1;
+        render();
+      });
+    });
+  }
+
+  function renderTable(rows) {
+    const sorted = [...rows].sort((a, b) => {
+      let av = a[sortKey], bv = b[sortKey];
+      if (av === null || av === undefined) av = '';
+      if (bv === null || bv === undefined) bv = '';
+      if (typeof av === 'number' || typeof bv === 'number') {
+        av = Number(av) || 0; bv = Number(bv) || 0;
+      }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+    if (page > totalPages) page = totalPages;
+    const start = (page - 1) * PAGE_SIZE;
+    const pageRows = sorted.slice(start, start + PAGE_SIZE);
+
+    const body = document.getElementById('table-body');
+    const empty = document.getElementById('table-empty');
+    body.innerHTML = '';
+    if (pageRows.length === 0) {
+      empty.style.display = 'block';
+    } else {
+      empty.style.display = 'none';
+      const frag = document.createDocumentFragment();
+      for (const r of pageRows) {
+        const tr = document.createElement('tr');
+        const cells = [
+          r.kunde || '–',
+          r.material || '–',
+          fmtDate(r.datum),
+          r.maschine || '–',
+        ];
+        tr.innerHTML = `
+          <td>${escapeHtml(cells[0])}</td>
+          <td>${escapeHtml(cells[1])}</td>
+          <td>${cells[2]}</td>
+          <td>${escapeHtml(cells[3])}</td>
+          <td class="num">${fmtNum(r.ist)}</td>
+          <td class="num">${fmtNum(r.soll)}</td>
+          <td class="num">${r.abweichung > 0 ? '+' : ''}${fmtNum(r.abweichung)}</td>
+          <td class="num">${r.abweichungPct > 0 ? '+' : ''}${fmtNum(r.abweichungPct, 1)}%</td>
+          <td class="typ"><span class="pill ${r.typ === 'Unterlieferung' ? 'neg' : 'pos'}">${r.typ === 'Unterlieferung' ? 'Unter' : 'Über'}</span></td>
+        `;
+        frag.appendChild(tr);
+      }
+      body.appendChild(frag);
+    }
+
+    document.getElementById('table-count').textContent = `${fmtNum(sorted.length)} Datensätze`;
+    document.getElementById('pg-info').textContent = `Seite ${page} / ${totalPages}`;
+    document.getElementById('pg-prev').disabled = page <= 1;
+    document.getElementById('pg-next').disabled = page >= totalPages;
+  }
+
+  function escapeHtml(s) {
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
+  /* ---------------- Wiring ---------------- */
+  function render() {
+    const filtered = applyFilters();
+    const periodRows = computeKpiPeriod(filtered);
+    renderPeriodNav();
+    renderKPIs(periodRows);
+    renderTrendChart(filtered);
+    renderShareChart(filtered);
+    renderTableHead();
+    renderTable(filtered);
+  }
+
+  function populateFilterOptions() {
+    const kundeList = document.getElementById('kunde-list');
+    const kunden = [...new Set(RAW.map((r) => r.kunde).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
+    kundeList.innerHTML = kunden.map((k) => `<option value="${escapeHtml(k)}"></option>`).join('');
+
+    const maschTgl = document.getElementById('machine-toggle');
+    const maschinen = [...new Set(RAW.map((r) => r.maschine).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
+    maschTgl.innerHTML = '<button data-m="" class="active">Alle</button>' +
+      maschinen.map((m) => `<button data-m="${escapeHtml(m)}">${escapeHtml(m)}</button>`).join('');
+  }
+
+  document.getElementById('f-kunde').addEventListener('input', (e) => { state.kunde = e.target.value; page = 1; render(); });
+  document.getElementById('f-material').addEventListener('input', (e) => { state.material = e.target.value; page = 1; render(); });
+  document.getElementById('f-von').addEventListener('change', (e) => { state.von = e.target.value; page = 1; render(); });
+  document.getElementById('f-bis').addEventListener('change', (e) => { state.bis = e.target.value; page = 1; render(); });
+
+  document.getElementById('machine-toggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    state.maschine = btn.dataset.m;
+    document.querySelectorAll('#machine-toggle button').forEach((b) => b.classList.toggle('active', b === btn));
+    page = 1;
+    render();
+  });
+
+  document.getElementById('gran-toggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    state.gran = btn.dataset.g;
+    state.periodKey = null; // beim Wechsel der Zeitraum-Ebene auf den neuesten verfuegbaren Zeitraum springen
+    document.querySelectorAll('#gran-toggle button').forEach((b) => b.classList.toggle('active', b === btn));
+    render();
+  });
+
+  document.getElementById('period-prev').addEventListener('click', () => {
+    const idx = currentPeriods.indexOf(state.periodKey);
+    if (idx > 0) { state.periodKey = currentPeriods[idx - 1]; render(); }
+  });
+  document.getElementById('period-next').addEventListener('click', () => {
+    const idx = currentPeriods.indexOf(state.periodKey);
+    if (idx >= 0 && idx < currentPeriods.length - 1) { state.periodKey = currentPeriods[idx + 1]; render(); }
+  });
+  document.getElementById('period-latest').addEventListener('click', () => { state.periodKey = null; render(); });
+
+  document.getElementById('btn-reset').addEventListener('click', () => {
+    state.kunde = ''; state.material = ''; state.maschine = ''; state.von = ''; state.bis = ''; state.periodKey = null;
+    document.getElementById('f-kunde').value = '';
+    document.getElementById('f-material').value = '';
+    document.getElementById('f-von').value = '';
+    document.getElementById('f-bis').value = '';
+    document.querySelectorAll('#machine-toggle button').forEach((b) => b.classList.toggle('active', b.dataset.m === ''));
+    page = 1;
+    render();
+  });
+
+  document.getElementById('pg-prev').addEventListener('click', () => { if (page > 1) { page--; renderTable(applyFilters()); } });
+  document.getElementById('pg-next').addEventListener('click', () => { page++; renderTable(applyFilters()); });
+
+  function initWithData(data) {
+    RAW = data.filter((r) => !isExcludedMachine(r.maschine));
+    const dates = RAW.map((r) => r.meldedatum).filter(Boolean).sort();
+    const stand = dates.length ? fmtDate(dates[dates.length - 1]) : '–';
+    document.getElementById('load-status').textContent = `${RAW.length.toLocaleString('de-CH')} Datensätze geladen · Datenstand (neuester Report): ${stand}`;
+    populateFilterOptions();
+    render();
+  }
+
+  // Eigenstaendige Version: Daten sind bereits als window.__UE_DATA__ eingebettet
+  // (siehe tools/extract-ue-lieferungen.ps1), kein fetch() und kein Server noetig.
+  if (window.__UE_DATA__) {
+    initWithData(window.__UE_DATA__);
+  } else {
+    fetch('./ue-lieferungen-data.json')
+      .then((r) => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(initWithData)
+      .catch((err) => {
+        document.getElementById('load-status').textContent =
+          'Fehler beim Laden von ue-lieferungen-data.json: ' + err.message + ' — bitte über den lokalen Server öffnen (nicht als file://) und sicherstellen, dass das Extraktionsskript bereits gelaufen ist.';
+      });
+  }
+</script>
+</body>
+</html>
