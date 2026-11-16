@@ -376,7 +376,9 @@ function median(a) { if (!a.length) return null; const s = a.slice().sort((x, y)
 function renderKpis(ev) {
   const sum = (k, rows = ev) => rows.filter(r => r.kind === k).reduce((s, r) => s + val(r), 0);
   const count = (k, rows = ev) => rows.filter(r => r.kind === k).length;
-  const lastEv = ev.filter(r => r.t === LAST);
+  // Letzter Tag mit Eingang im gewählten Werk (montags sonst der Sonntag mit 0)
+  const lastDay = EV.reduce((m, r) => r.kind === "neu" && (state.plant === "all" || r.plant === state.plant) && r.t > m ? r.t : m, "") || LAST;
+  const lastEv = ev.filter(r => r.t === lastDay);
   const pd = periodDays();
   const workdays = pd.filter(d => { const w = D(d).getUTCDay(); return w >= 1 && w <= 5; }).length || 1;
   const neuSum = sum("neu");
@@ -388,7 +390,7 @@ function renderKpis(ev) {
   const bestand = state.unit === "n" ? plants.reduce((s, p) => s + BESTAND[p].n, 0) : plants.reduce((s, p) => s + BESTAND[p][state.unit], 0);
   const filtered = state.wg.size < WGS.length || state.focus;
   const k = [
-    [`Eingang ${dayLbl(LAST)}`, fmtShort(sum("neu", lastEv)), `${fmt(count("neu", lastEv))} neue Aufträge`],
+    [`Eingang ${dayLbl(lastDay)}`, fmtShort(sum("neu", lastEv)), `${fmt(count("neu", lastEv))} neue Aufträge` + (lastDay < LAST ? " · letzter Tag mit Eingang" : "")],
     [`Eingang ${state.period ? state.period + " Tage" : "gesamt"}`, fmtShort(neuSum), `${fmt(count("neu"))} Aufträge seit ${dateCH(pd[0])}`],
     ["Ø je Arbeitstag", fmtShort(neuSum / workdays), `${workdays} Arbeitstage (Mo–Fr)`],
     ["Entfallen", fmtShort(sum("weg")), `${fmt(count("weg"))} Aufträge, meist produziert`],
