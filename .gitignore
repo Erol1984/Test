@@ -15,3 +15,4 @@ auftragseingang-data.json
 auftragseingang-dashboard-standalone.html
 auftragseingang-cache/
 tools/extract-auftragseingang.log
+tools/run-dashboards.log
